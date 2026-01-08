@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import { supabase } from "./config/supabase.js";
+import studentAuthRoutes from "./routes/studentAuth.routes.js";
 
 dotenv.config();
 
@@ -9,6 +10,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use("/api/auth/student", studentAuthRoutes);
 
 app.post("/api/student", async (req, res) => {
   const { name } = req.body;

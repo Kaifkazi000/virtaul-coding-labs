@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function HomePage() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +67,14 @@ export default function HomePage() {
         >
           Submit
         </button>
+      <button
+  type="button"
+  onClick={() => router.push("/auth/select-role")}
+  className="w-full mt-3 border border-black text-black py-2 rounded-md hover:bg-black hover:text-white transition"
+>
+  Login / Signup
+</button>
+
       </form>
     </main>
   );
