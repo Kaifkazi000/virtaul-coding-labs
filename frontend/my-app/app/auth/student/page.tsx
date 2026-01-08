@@ -46,9 +46,7 @@ export default function StudentAuthPage() {
 
       const res = await fetch(url, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
@@ -58,30 +56,42 @@ export default function StudentAuthPage() {
         throw new Error(data.message || "Something went wrong");
       }
 
-      // SUCCESS
-      alert(isSignup ? "Signup successful" : "Login successful");
+      // ================= SIGNUP =================
+      if (isSignup) {
+        alert("Signup successful. Please login.");
+        setIsSignup(false); // switch to login
+        setLoading(false);
+        return;
+      }
 
-      // later: store session/token
-    // save token
-localStorage.setItem("student_token", data.session.access_token);
+      // ================= LOGIN =================
+      // 1️⃣ Save token
+      localStorage.setItem(
+        "student_token",
+        data.session.access_token
+      );
 
-// fetch student profile
-const profileRes = await fetch(
-  "http://localhost:5000/api/auth/student/me",
-  {
-    headers: {
-      Authorization: `Bearer ${data.session.access_token}`,
-    },
-  }
-);
+      // 2️⃣ Fetch student profile
+      const profileRes = await fetch(
+        "http://localhost:5000/api/auth/student/me",
+        {
+          headers: {
+            Authorization: `Bearer ${data.session.access_token}`,
+          },
+        }
+      );
 
-const profile = await profileRes.json();
+      const profile = await profileRes.json();
 
-localStorage.setItem("student_data", JSON.stringify(profile));
-localStorage.setItem("student_logged_in", "true");
+      if (!profileRes.ok) {
+        throw new Error(profile.message || "Failed to load profile");
+      }
 
-router.push("/dashboard/student");
+      // 3️⃣ Save session data
+      localStorage.setItem("student_data", JSON.stringify(profile));
+      localStorage.setItem("student_logged_in", "true");
 
+      router.push("/dashboard/student");
     } catch (err: any) {
       setError(err.message);
     } finally {
