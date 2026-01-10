@@ -5,6 +5,7 @@ import { supabase } from "./config/supabase.js";
 import studentAuthRoutes from "./routes/studentAuth.routes.js";
 import teacherAuthRoutes from "./routes/teacherAuth.routes.js";
 import subjectRoutes from "./routes/subject.route.js";
+import practicalRoutes from "./routes/practical.route.js";
 dotenv.config();
 
 const app = express();
@@ -14,6 +15,8 @@ app.use(express.json());
 app.use("/api/auth/student", studentAuthRoutes);
 app.use("/api/auth/teacher", teacherAuthRoutes);
 app.use("/api/subjects", subjectRoutes);
+app.use("/api/practicals", practicalRoutes);
+
 app.post("/api/student", async (req, res) => {
   const { name } = req.body;
 

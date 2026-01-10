@@ -28,44 +28,44 @@ export default function StudentDashboard() {
     }
   }, [router]);
 
-  // 📚 Fetch subjects
- useEffect(() => {
-  const fetchSubjects = async () => {
-    try {
-      const token = localStorage.getItem("student_token");
+  // 📚 Fetch subjects (STUDENT API)
+  useEffect(() => {
+    const fetchSubjects = async () => {
+      try {
+        const token = localStorage.getItem("student_token");
 
-      if (!token) {
-        throw new Error("Student token missing");
-      }
-
-      const res = await fetch(
-        "http://localhost:5000/api/subjects/student",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        if (!token) {
+          throw new Error("Student token missing");
         }
-      );
 
-      const data = await res.json();
+        const res = await fetch(
+          "http://localhost:5000/api/subjects/student",
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
 
-      console.log("Student subjects response:", data);
+        const data = await res.json();
 
-      if (!res.ok) {
-        throw new Error("Failed to fetch subjects");
+        console.log("Student subjects response:", data);
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch subjects");
+        }
+
+        setSubjects(data);
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message);
+      } finally {
+        setLoadingSubjects(false);
       }
+    };
 
-      setSubjects(data);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingSubjects(false);
-    }
-  };
-
-  fetchSubjects();
-}, []);
-
+    fetchSubjects();
+  }, []);
 
   if (!student) return null;
 
@@ -104,7 +104,12 @@ export default function StudentDashboard() {
             {subjects.map((subject) => (
               <li
                 key={subject.id}
-                className="border rounded-md p-4 bg-gray-50"
+                onClick={() =>
+                  router.push(
+                    `/dashboard/student/subjects/${subject.id}`
+                  )
+                }
+                className="border rounded-md p-4 bg-gray-50 cursor-pointer hover:bg-gray-100"
               >
                 <p className="font-semibold">{subject.name}</p>
                 <p className="text-sm text-gray-600">

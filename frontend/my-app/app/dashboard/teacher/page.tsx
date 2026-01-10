@@ -77,11 +77,14 @@ export default function TeacherDashboard() {
 
         {/* Add Subject Button */}
         <button
-          onClick={() => setShowForm(!showForm)}
-          className="mb-4 bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
-        >
-          + Add Subject
-        </button>
+  onClick={() =>
+    router.push("/dashboard/teacher/subjects/new")
+  }
+  className="bg-black text-white px-4 py-2 rounded-md hover:bg-gray-800"
+>
+  + Add Subject
+</button>
+
 
         {/* Add Subject Form */}
         {showForm && (

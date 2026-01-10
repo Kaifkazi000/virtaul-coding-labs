@@ -36,16 +36,28 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100">
+    <main className="min-h-screen bg-gradient-to-b from-gray-900 to-black flex flex-col items-center justify-center px-4">
+      
+      {/* BIG PROJECT TITLE */}
+      <div className="text-center mb-10">
+        <h1 className="text-6xl md:text-7xl font-extrabold text-white tracking-wide">
+          CodeLab
+        </h1>
+        <p className="mt-4 text-gray-300 text-base md:text-lg">
+          Project under development • Target completion: 15th January
+        </p>
+      </div>
+
+      {/* FORM CARD */}
       <form
         onSubmit={handleSubmit}
-        className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm"
+        className="w-full max-w-md bg-gray-800/80 backdrop-blur p-8 rounded-2xl shadow-xl border border-gray-700"
       >
-        <h1 className="text-2xl font-semibold text-center mb-4">
+        <h2 className="text-2xl font-semibold text-white text-center mb-6">
           Student Registration
-        </h1>
+        </h2>
 
-        <label className="block text-sm font-medium mb-2">
+        <label className="block text-sm text-gray-300 mb-2">
           Student Name
         </label>
 
@@ -54,27 +66,27 @@ export default function HomePage() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Enter your name"
-          className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full px-4 py-3 bg-gray-900 text-white border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-white"
         />
 
         {error && (
-          <p className="text-red-500 text-sm mt-2">{error}</p>
+          <p className="text-red-400 text-sm mt-2">{error}</p>
         )}
 
         <button
           type="submit"
-          className="w-full mt-4 bg-black text-white py-2 rounded-md hover:bg-gray-800"
+          className="w-full mt-6 bg-white text-black py-3 rounded-md font-medium hover:bg-gray-200 transition"
         >
           Submit
         </button>
-      <button
-  type="button"
-  onClick={() => router.push("/auth/select-role")}
-  className="w-full mt-3 border border-black text-black py-2 rounded-md hover:bg-black hover:text-white transition"
->
-  Login / Signup
-</button>
 
+        <button
+          type="button"
+          onClick={() => router.push("/auth/select-role")}
+          className="w-full mt-4 border border-white text-white py-3 rounded-md hover:bg-white hover:text-black transition"
+        >
+          Login / Signup
+        </button>
       </form>
     </main>
   );
