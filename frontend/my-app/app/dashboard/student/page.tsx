@@ -39,7 +39,7 @@ export default function StudentDashboard() {
         }
 
         const res = await fetch(
-          "http://localhost:5000/api/subjects/student",
+          "http://localhost:5000/api/subject-instances/student",
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -111,9 +111,9 @@ export default function StudentDashboard() {
                 }
                 className="border rounded-md p-4 bg-gray-50 cursor-pointer hover:bg-gray-100"
               >
-                <p className="font-semibold">{subject.name}</p>
+                <p className="font-semibold">{subject.subject_name}</p>
                 <p className="text-sm text-gray-600">
-                  Code: {subject.code}
+                  Code: {subject.subject_code} | Semester: {subject.semester}
                 </p>
               </li>
             ))}

@@ -1,43 +1,41 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { supabase } from "./config/supabase.js";
+
 import studentAuthRoutes from "./routes/studentAuth.routes.js";
 import teacherAuthRoutes from "./routes/teacherAuth.routes.js";
 import subjectRoutes from "./routes/subject.route.js";
+import subjectInstanceRoutes from "./routes/subjectInstance.route.js";
 import practicalRoutes from "./routes/practical.route.js";
+import submissionRoutes from "./routes/submission.route.js";
+
 dotenv.config();
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    exposedHeaders: ["Authorization"],
+  })
+);
+
 app.use(express.json());
+
+// auth
 app.use("/api/auth/student", studentAuthRoutes);
 app.use("/api/auth/teacher", teacherAuthRoutes);
+
+// old subjects (can be removed later)
 app.use("/api/subjects", subjectRoutes);
+
+// new instance-based system
+app.use("/api/subject-instances", subjectInstanceRoutes);
 app.use("/api/practicals", practicalRoutes);
-
-app.post("/api/student", async (req, res) => {
-  const { name } = req.body;
-
-  if (!name) {
-    return res.status(400).json({ message: "Name is required" });
-  }
-
-  const { data, error } = await supabase
-    .from("students")
-    .insert([{ name }]);
-
-  if (error) {
-    console.error(error);
-    return res.status(500).json({ message: "Supabase error" });
-  }
-
-  res.json({
-    message: "Student saved in Supabase",
-    data,
-  });
-});
+app.use("/api/submissions", submissionRoutes);
 
 app.listen(5000, () => {
   console.log("Backend running on http://localhost:5000");

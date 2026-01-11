@@ -3,11 +3,11 @@ import { supabase } from "../config/supabase.js";
 // ================= STUDENT SIGNUP =================
 export const studentSignup = async (req, res) => {
   try {
-    const { name, email, password, prn, roll } = req.body;
+    const { name, email, password, prn, roll, semester } = req.body;
 
-    if (!name || !email || !password || !prn || !roll) {
+    if (!name || !email || !password || !prn || !roll || !semester) {
       return res.status(400).json({
-        message: "All fields are required",
+        message: "All fields are required (including semester)",
       });
     }
 
@@ -35,6 +35,7 @@ export const studentSignup = async (req, res) => {
           email: email,
           prn: prn,
           roll: roll,
+          semester: Number(semester),
           department: "CSE",
           college_name: "Government College of Engineering, Chandrapur",
         },
@@ -109,7 +110,7 @@ export const getCurrentStudent = async (req, res) => {
 
     const { data, error } = await supabase
       .from("studentss")
-      .select("name, email, prn, roll, department")
+      .select("name, email, prn, roll, department, semester")
       .eq("auth_user_id", userData.user.id)
       .single();
 

@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 
 export default function TeacherLoginPage() {
   const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
@@ -23,23 +24,42 @@ export default function TeacherLoginPage() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({
+            email,
+            password,
+          }),
         }
       );
 
       const data = await res.json();
 
+      console.log("TEACHER LOGIN RESPONSE:", data);
+
       if (!res.ok) {
         throw new Error(data.message || "Login failed");
       }
 
-      // Save teacher session data
+      // 🔥 THIS IS THE CRITICAL LINE (MISSING BEFORE)
+      if (!data.session || !data.session.access_token) {
+        throw new Error("Teacher token not returned from backend");
+      }
+
+      // ✅ SAVE TOKEN CORRECTLY
+      localStorage.setItem(
+        "teacher_token",
+        data.session.access_token
+      );
+
       localStorage.setItem("teacher_logged_in", "true");
-localStorage.setItem("teacher_data", JSON.stringify(data.teacher));
-localStorage.setItem("teacher_token", data.session.access_token);
 
-router.push("/dashboard/teacher");
+      // Optional
+      localStorage.setItem(
+        "teacher_data",
+        JSON.stringify(data.user || {})
+      );
 
+      // ✅ Redirect AFTER token is saved
+      router.push("/dashboard/teacher");
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -49,43 +69,46 @@ router.push("/dashboard/teacher");
 
   return (
     <main className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm">
-        <h1 className="text-2xl font-semibold text-center mb-4 text-gray-800">
+      <form
+        onSubmit={handleLogin}
+        className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm"
+      >
+        <h1 className="text-2xl font-semibold text-center mb-4">
           Teacher Login
         </h1>
 
         {error && (
-          <p className="mb-3 text-sm text-red-600 text-center">{error}</p>
+          <p className="text-red-600 text-sm mb-3 text-center">
+            {error}
+          </p>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full mb-3 px-3 py-2 border rounded-md"
-            required
-          />
+        <input
+          type="email"
+          placeholder="Email"
+          className="w-full mb-3 px-3 py-2 border rounded-md"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
 
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full mb-4 px-3 py-2 border rounded-md"
-            required
-          />
+        <input
+          type="password"
+          placeholder="Password"
+          className="w-full mb-4 px-3 py-2 border rounded-md"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800 disabled:opacity-60"
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-      </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800 disabled:opacity-60"
+        >
+          {loading ? "Logging in..." : "Login"}
+        </button>
+      </form>
     </main>
   );
 }

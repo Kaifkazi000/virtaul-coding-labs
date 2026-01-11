@@ -9,11 +9,18 @@ export default function StudentPracticalDetailPage() {
   const practicalId = params.practicalId as string;
 
   const [practical, setPractical] = useState<any>(null);
+  const [submission, setSubmission] = useState<any>(null);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(true);
+  const [executing, setExecuting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [executionResult, setExecutionResult] = useState<any>(null);
+  const [canSubmit, setCanSubmit] = useState(false);
 
   useEffect(() => {
-    const fetchPractical = async () => {
+    const fetchData = async () => {
       try {
         const token = localStorage.getItem("student_token");
 
@@ -22,7 +29,8 @@ export default function StudentPracticalDetailPage() {
           return;
         }
 
-        const res = await fetch(
+        // Fetch practical details
+        const practicalRes = await fetch(
           `http://localhost:5000/api/practicals/${practicalId}`,
           {
             headers: {
@@ -31,15 +39,33 @@ export default function StudentPracticalDetailPage() {
           }
         );
 
-        const data = await res.json();
+        const practicalData = await practicalRes.json();
 
-        console.log("Practical detail response:", data);
-
-        if (!res.ok) {
-          throw new Error(data.message || "Failed to load practical");
+        if (!practicalRes.ok) {
+          throw new Error(practicalData.error || "Failed to load practical");
         }
 
-        setPractical(data);
+        setPractical(practicalData);
+
+        // Load existing submission if any
+        const submissionRes = await fetch(
+          `http://localhost:5000/api/submissions/student/${practicalId}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        const submissionData = await submissionRes.json();
+
+        if (submissionRes.ok && submissionData.submission) {
+          setSubmission(submissionData.submission);
+          setCode(submissionData.submission.code || "");
+        } else if (practicalData.sample_code) {
+          // Load sample code if no submission exists
+          setCode(practicalData.sample_code);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -47,8 +73,105 @@ export default function StudentPracticalDetailPage() {
       }
     };
 
-    fetchPractical();
+    fetchData();
   }, [practicalId, router]);
+
+  const handleExecute = async () => {
+    if (!code.trim()) {
+      setError("Please write some code first");
+      return;
+    }
+
+    setExecuting(true);
+    setError("");
+    setSuccess("");
+    setExecutionResult(null);
+    setCanSubmit(false);
+
+    try {
+      const token = localStorage.getItem("student_token");
+
+      const res = await fetch(
+        "http://localhost:5000/api/submissions/execute",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            code: code,
+            language: practical.language,
+            practical_id: practicalId,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Execution failed");
+      }
+
+      setExecutionResult(data);
+      setCanSubmit(data.execution_status === "success");
+      
+      if (data.execution_status === "success") {
+        setSuccess("Code executed successfully! You can now submit.");
+      } else {
+        setError(data.error || "Execution failed. Please fix the code.");
+      }
+    } catch (err: any) {
+      setError(err.message);
+      setCanSubmit(false);
+    } finally {
+      setExecuting(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!canSubmit) {
+      setError("Please execute code successfully first");
+      return;
+    }
+
+    setSubmitting(true);
+    setError("");
+    setSuccess("");
+
+    try {
+      const token = localStorage.getItem("student_token");
+
+      const res = await fetch("http://localhost:5000/api/submissions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          code: code,
+          language: practical.language,
+          practical_id: practicalId,
+          execution_status: executionResult.execution_status,
+          output: executionResult.output,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Submission failed");
+      }
+
+      setSubmission(data.submission);
+      setSuccess("Submission successful! Waiting for teacher review.");
+      setCanSubmit(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -56,7 +179,7 @@ export default function StudentPracticalDetailPage() {
     );
   }
 
-  if (error) {
+  if (error && !practical) {
     return (
       <p className="p-6 text-red-600">{error}</p>
     );
@@ -64,9 +187,26 @@ export default function StudentPracticalDetailPage() {
 
   if (!practical) return null;
 
+  const getStatusBadge = (status: string) => {
+    const styles = {
+      pending: "bg-yellow-100 text-yellow-800",
+      approved: "bg-green-100 text-green-800",
+      rejected: "bg-red-100 text-red-800",
+    };
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-sm font-medium ${
+          styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800"
+        }`}
+      >
+        {status.charAt(0).toUpperCase() + status.slice(1)}
+      </span>
+    );
+  };
+
   return (
     <main className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* LEFT SIDE – PRACTICAL CONTENT */}
         <div className="bg-white p-6 rounded-lg shadow-md">
           <h1 className="text-2xl font-semibold mb-2">
@@ -77,12 +217,30 @@ export default function StudentPracticalDetailPage() {
             Language: {practical.language}
           </p>
 
+          {/* Submission Status */}
+          {submission && (
+            <div className="mb-4 p-3 bg-gray-50 rounded-md">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-medium">Submission Status:</span>
+                {getStatusBadge(submission.submission_status)}
+              </div>
+              {submission.teacher_feedback && (
+                <p className="text-sm text-gray-700 mt-2">
+                  <strong>Feedback:</strong> {submission.teacher_feedback}
+                </p>
+              )}
+              {submission.reviewed_at && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Reviewed: {new Date(submission.reviewed_at).toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+
           {practical.description && (
             <section className="mb-4">
               <h2 className="font-semibold mb-1">Description</h2>
-              <p className="text-gray-700">
-                {practical.description}
-              </p>
+              <p className="text-gray-700">{practical.description}</p>
             </section>
           )}
 
@@ -96,9 +254,7 @@ export default function StudentPracticalDetailPage() {
           {practical.theory && (
             <section className="mb-4">
               <h2 className="font-semibold mb-1">Theory</h2>
-              <p className="text-gray-700">
-                {practical.theory}
-              </p>
+              <p className="text-gray-700">{practical.theory}</p>
             </section>
           )}
 
@@ -119,16 +275,83 @@ export default function StudentPracticalDetailPage() {
           </button>
         </div>
 
-        {/* RIGHT SIDE – COMPILER PLACEHOLDER */}
-        <div className="bg-white p-6 rounded-lg shadow-md flex items-center justify-center">
-          <div className="text-center text-gray-500">
-            <p className="font-semibold mb-2">
-              Compiler (Coming Soon)
-            </p>
-            <p className="text-sm">
-              Code execution will be enabled here.
-            </p>
+        {/* RIGHT SIDE – CODE EDITOR & EXECUTION */}
+        <div className="bg-white p-6 rounded-lg shadow-md">
+          <h2 className="text-xl font-semibold mb-4">Code Editor</h2>
+
+          {/* Error/Success Messages */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-700 text-sm">{error}</p>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-green-700 text-sm">{success}</p>
+            </div>
+          )}
+
+          {/* Code Editor */}
+          <textarea
+            value={code}
+            onChange={(e) => {
+              setCode(e.target.value);
+              setCanSubmit(false);
+              setExecutionResult(null);
+            }}
+            placeholder="Write your code here..."
+            className="w-full h-64 p-3 border rounded-md font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={submission?.submission_status === "approved"}
+          />
+
+          {/* Execution Result */}
+          {executionResult && (
+            <div className="mt-4 p-3 bg-gray-50 rounded-md">
+              <p className="font-medium mb-2">Execution Result:</p>
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap">
+                {executionResult.output || executionResult.error}
+              </pre>
+              <p
+                className={`mt-2 text-sm font-medium ${
+                  executionResult.execution_status === "success"
+                    ? "text-green-600"
+                    : "text-red-600"
+                }`}
+              >
+                Status: {executionResult.execution_status}
+              </p>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="mt-4 flex gap-3">
+            <button
+              onClick={handleExecute}
+              disabled={executing || !code.trim() || submission?.submission_status === "approved"}
+              className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {executing ? "Executing..." : "Execute Code"}
+            </button>
+
+            <button
+              onClick={handleSubmit}
+              disabled={
+                submitting ||
+                !canSubmit ||
+                submission?.submission_status === "approved"
+              }
+              className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Submitting..." : "Submit"}
+            </button>
           </div>
+
+          {submission?.submission_status === "approved" && (
+            <p className="mt-3 text-sm text-green-600 font-medium">
+              ✓ This practical has been approved. You can proceed to the next one.
+            </p>
+          )}
         </div>
       </div>
     </main>

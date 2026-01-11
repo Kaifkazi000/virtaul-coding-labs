@@ -1,12 +1,10 @@
 import { supabase } from "../config/supabase.js";
 
-/**
- * TEACHER: Add practical
- */
+// TEACHER: Add practical
 export const addPractical = async (req, res) => {
   try {
     const {
-      subject_id,
+      subject_instance_id,
       pr_no,
       title,
       description,
@@ -16,25 +14,21 @@ export const addPractical = async (req, res) => {
       language,
     } = req.body;
 
-    // get teacher from token
     const authHeader = req.headers.authorization;
-    if (!authHeader) {
+    if (!authHeader)
       return res.status(401).json({ error: "Authorization token missing" });
-    }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error: userError } =
-      await supabase.auth.getUser(token);
+    const { data: userData, error } = await supabase.auth.getUser(token);
 
-    if (userError || !userData.user) {
+    if (error || !userData.user)
       return res.status(401).json({ error: "Invalid token" });
-    }
 
     const teacherId = userData.user.id;
 
-    const { error } = await supabase.from("practicals").insert([
+    const { error: insertError } = await supabase.from("practicals").insert([
       {
-        subject_id,
+        subject_instance_id,
         pr_no,
         title,
         description,
@@ -46,28 +40,25 @@ export const addPractical = async (req, res) => {
       },
     ]);
 
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
+    if (insertError)
+      return res.status(400).json({ error: insertError.message });
 
     res.status(201).json({ message: "Practical added successfully" });
-  } catch (err) {
-    console.error(err);
+  } catch {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 /**
- * TEACHER: Get own practicals for a subject
+ * TEACHER: Get own practicals for a subject instance
  */
 export const getTeacherPracticalsBySubject = async (req, res) => {
   try {
-    const { subjectId } = req.params;
+    const { subjectInstanceId } = req.params;
 
     const { data, error } = await supabase
       .from("practicals")
       .select("*")
-      .eq("subject_id", subjectId)
+      .eq("subject_instance_id", subjectInstanceId)
       .order("pr_no");
 
     if (error) {
@@ -80,29 +71,25 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
   }
 };
 
-/**
- * STUDENT: Get practical list for a subject
- */
-export const getStudentPracticalsBySubject = async (req, res) => {
+
+export const getStudentPracticalsBySubjectInstance = async (req, res) => {
   try {
-    const { subjectId } = req.params;
+    const { subjectInstanceId } = req.params;
 
     const { data, error } = await supabase
       .from("practicals")
       .select("id, pr_no, title")
-      .eq("subject_id", subjectId)
-      .eq("is_active", true)
+      .eq("subject_instance_id", subjectInstanceId)
       .order("pr_no");
 
-    if (error) {
-      return res.status(400).json({ error: error.message });
-    }
+    if (error) return res.status(400).json({ error: error.message });
 
     res.json(data);
   } catch {
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 /**
  * STUDENT: Get single practical detail

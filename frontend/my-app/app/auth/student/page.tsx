@@ -15,6 +15,7 @@ export default function StudentAuthPage() {
     password: "",
     prn: "",
     roll: "",
+    semester: "",
   });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,6 +39,7 @@ export default function StudentAuthPage() {
             password: formData.password,
             prn: formData.prn,
             roll: formData.roll,
+            semester: formData.semester,
           }
         : {
             email: formData.email,
@@ -139,6 +141,21 @@ export default function StudentAuthPage() {
                 className="w-full mb-3 px-3 py-2 border rounded-md"
                 required
               />
+
+              <select
+                name="semester"
+                value={formData.semester}
+                onChange={handleChange}
+                className="w-full mb-3 px-3 py-2 border rounded-md"
+                required
+              >
+                <option value="">Select Semester</option>
+                {Array.from({ length: 8 }, (_, i) => i + 1).map((sem) => (
+                  <option key={sem} value={sem}>
+                    Semester {sem}
+                  </option>
+                ))}
+              </select>
             </>
           )}
 
