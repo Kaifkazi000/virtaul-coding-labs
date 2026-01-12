@@ -26,28 +26,40 @@ export const addPractical = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { error: insertError } = await supabase.from("practicals").insert([
-      {
-        subject_instance_id,
-        pr_no,
-        title,
-        description,
-        task,
-        sample_code,
-        theory,
-        language,
-        created_by: teacherId,
-      },
-    ]);
+    // Set PR-1 to enabled by default
+    const isEnabled = pr_no === 1;
+
+    const { data, insertError } = await supabase
+      .from("practicals")
+      .insert([
+        {
+          subject_instance_id,
+          pr_no,
+          title,
+          description,
+          task,
+          sample_code,
+          theory,
+          language,
+          created_by: teacherId,
+          is_enabled: isEnabled,
+          enabled_at: isEnabled ? new Date().toISOString() : null,
+          enabled_by: isEnabled ? teacherId : null,
+        },
+      ])
+      .select()
+      .single();
 
     if (insertError)
       return res.status(400).json({ error: insertError.message });
 
-    res.status(201).json({ message: "Practical added successfully" });
-  } catch {
+    res.status(201).json({ message: "Practical added successfully", practical: data });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 /**
  * TEACHER: Get own practicals for a subject instance
  */
@@ -66,11 +78,91 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
     }
 
     res.json(data);
-  } catch {
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
 
+/**
+ * TEACHER: Enable/Disable practical for all students (Batch Unlock)
+ * PATCH /api/practicals/:practicalId/enable
+ */
+export const enablePractical = async (req, res) => {
+  try {
+    const { practicalId } = req.params;
+    const { enabled } = req.body; // true or false
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Authorization token missing" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !userData.user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    const teacherId = userData.user.id;
+
+    // Get practical and verify teacher owns the subject instance
+    const { data: practical, error: practicalError } = await supabase
+      .from("practicals")
+      .select("id, subject_instance_id")
+      .eq("id", practicalId)
+      .single();
+
+    if (practicalError || !practical) {
+      return res.status(404).json({ error: "Practical not found" });
+    }
+
+    // Verify teacher owns the subject instance
+    const { data: subjectInstance, error: instanceError } = await supabase
+      .from("subject_instances")
+      .select("id, teacher_id")
+      .eq("id", practical.subject_instance_id)
+      .single();
+
+    if (practicalError || !practical) {
+      return res.status(404).json({ error: "Practical not found" });
+    }
+
+    // Check if teacher owns this practical's subject instance
+    if (practical.subject_instances.teacher_id !== teacherId) {
+      return res.status(403).json({
+        error: "You don't have permission to modify this practical",
+      });
+    }
+
+    // Update enable status
+    const updateData = {
+      is_enabled: enabled === true,
+      enabled_at: enabled === true ? new Date().toISOString() : null,
+      enabled_by: enabled === true ? teacherId : null,
+    };
+
+    const { data: updatedPractical, error: updateError } = await supabase
+      .from("practicals")
+      .update(updateData)
+      .eq("id", practicalId)
+      .select()
+      .single();
+
+    if (updateError) {
+      return res.status(400).json({ error: updateError.message });
+    }
+
+    res.json({
+      message: `Practical ${enabled ? "enabled" : "disabled"} successfully`,
+      practical: updatedPractical,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 
 export const getStudentPracticalsBySubjectInstance = async (req, res) => {
   try {
@@ -78,18 +170,18 @@ export const getStudentPracticalsBySubjectInstance = async (req, res) => {
 
     const { data, error } = await supabase
       .from("practicals")
-      .select("id, pr_no, title")
+      .select("id, pr_no, title, is_enabled")
       .eq("subject_instance_id", subjectInstanceId)
       .order("pr_no");
 
     if (error) return res.status(400).json({ error: error.message });
 
     res.json(data);
-  } catch {
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 /**
  * STUDENT: Get single practical detail
@@ -101,7 +193,7 @@ export const getPracticalDetail = async (req, res) => {
     const { data, error } = await supabase
       .from("practicals")
       .select(
-        "id, pr_no, title, description, task, sample_code, theory, language"
+        "id, pr_no, title, description, task, sample_code, theory, language, is_enabled"
       )
       .eq("id", practicalId)
       .single();
@@ -111,7 +203,8 @@ export const getPracticalDetail = async (req, res) => {
     }
 
     res.json(data);
-  } catch {
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };

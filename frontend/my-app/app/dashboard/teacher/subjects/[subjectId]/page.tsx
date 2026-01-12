@@ -10,11 +10,12 @@ export default function TeacherSubjectDetailPage() {
 
   const [subject, setSubject] = useState<any>(null);
   const [practicals, setPracticals] = useState<any[]>([]);
-  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [selectedPractical, setSelectedPractical] = useState<any>(null);
+  const [practicalStudents, setPracticalStudents] = useState<any>(null);
   const [selectedPr, setSelectedPr] = useState<number | "">("");
-  const [activeTab, setActiveTab] = useState<"add" | "review">("add");
+  const [activeTab, setActiveTab] = useState<"practicals" | "add">("practicals");
   const [loading, setLoading] = useState(true);
-  const [loadingSubmissions, setLoadingSubmissions] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -88,20 +89,15 @@ export default function TeacherSubjectDetailPage() {
     fetchSubject();
   }, [subjectId, router]);
 
-  // Fetch submissions when review tab is active
-  useEffect(() => {
-    if (activeTab === "review" && subjectId) {
-      fetchSubmissions();
-    }
-  }, [activeTab, subjectId]);
-
-  const fetchSubmissions = async () => {
-    setLoadingSubmissions(true);
+  // Fetch students for selected practical
+  const fetchPracticalStudents = async (practicalId: string) => {
+    setLoadingStudents(true);
+    setError("");
     try {
       const token = localStorage.getItem("teacher_token");
 
       const res = await fetch(
-        `http://localhost:5000/api/submissions/teacher/${subjectId}`,
+        `http://localhost:5000/api/teacher-dashboard/practical/${practicalId}/students`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -112,14 +108,96 @@ export default function TeacherSubjectDetailPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch submissions");
+        throw new Error(data.error || "Failed to fetch students");
       }
 
-      setSubmissions(data.submissions || []);
+      setPracticalStudents(data);
     } catch (err: any) {
       setError(err.message);
     } finally {
-      setLoadingSubmissions(false);
+      setLoadingStudents(false);
+    }
+  };
+
+  const handlePracticalClick = (practical: any) => {
+    setSelectedPractical(practical);
+    fetchPracticalStudents(practical.id);
+  };
+
+  const handleEnableToggle = async (practicalId: string, currentEnabled: boolean) => {
+    try {
+      const token = localStorage.getItem("teacher_token");
+
+      const res = await fetch(
+        `http://localhost:5000/api/practicals/${practicalId}/enable`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            enabled: !currentEnabled,
+          }),
+        }
+      );
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update practical");
+      }
+
+      // Refresh practicals list
+      const practicalsRes = await fetch(
+        `http://localhost:5000/api/practicals/teacher/${subjectId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const practicalsData = await practicalsRes.json();
+      if (practicalsRes.ok) {
+        setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
+      }
+
+      setSuccess(`Practical ${!currentEnabled ? "enabled" : "disabled"} successfully`);
+      setTimeout(() => setSuccess(""), 3000);
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleDownloadPDF = async (practicalId: string) => {
+    try {
+      const token = localStorage.getItem("teacher_token");
+
+      const res = await fetch(
+        `http://localhost:5000/api/pdf/practical/${practicalId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `PR-${selectedPractical?.pr_no || "report"}_${subject?.subject_name || "report"}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -201,38 +279,6 @@ export default function TeacherSubjectDetailPage() {
     }
   };
 
-  const handleReview = async (submissionId: string, action: "approve" | "reject", feedback: string = "") => {
-    try {
-      const token = localStorage.getItem("teacher_token");
-
-      const res = await fetch(
-        `http://localhost:5000/api/submissions/${submissionId}/review`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            action,
-            feedback,
-          }),
-        }
-      );
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to review submission");
-      }
-
-      setSuccess(`Submission ${action}d successfully`);
-      fetchSubmissions(); // Refresh submissions
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
   if (loading) {
     return <p className="p-6">Loading...</p>;
   }
@@ -247,15 +293,39 @@ export default function TeacherSubjectDetailPage() {
     <main className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-6xl mx-auto bg-white p-6 rounded-lg shadow-md">
         {/* Subject Info */}
-        <h1 className="text-2xl font-semibold mb-1">
-          {subject.subject_name}
-        </h1>
-        <p className="text-sm text-gray-600 mb-4">
-          Code: {subject.subject_code} | Semester: {subject.semester}
-        </p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-2xl font-semibold mb-1">
+              {subject.subject_name}
+            </h1>
+            <p className="text-sm text-gray-600">
+              Code: {subject.subject_code} | Semester: {subject.semester}
+            </p>
+          </div>
+          <button
+            onClick={() => router.back()}
+            className="text-sm text-blue-600 hover:underline"
+          >
+            ← Back
+          </button>
+        </div>
 
         {/* Tabs */}
         <div className="flex gap-4 mb-6 border-b">
+          <button
+            onClick={() => {
+              setActiveTab("practicals");
+              setSelectedPractical(null);
+              setPracticalStudents(null);
+            }}
+            className={`pb-2 px-4 font-medium ${
+              activeTab === "practicals"
+                ? "border-b-2 border-blue-600 text-blue-600"
+                : "text-gray-600"
+            }`}
+          >
+            Practicals
+          </button>
           <button
             onClick={() => setActiveTab("add")}
             className={`pb-2 px-4 font-medium ${
@@ -264,45 +334,204 @@ export default function TeacherSubjectDetailPage() {
                 : "text-gray-600"
             }`}
           >
-            Add Practicals
-          </button>
-          <button
-            onClick={() => setActiveTab("review")}
-            className={`pb-2 px-4 font-medium ${
-              activeTab === "review"
-                ? "border-b-2 border-blue-600 text-blue-600"
-                : "text-gray-600"
-            }`}
-          >
-            Review Submissions ({submissions.length})
+            Add Practical
           </button>
         </div>
+
+        {/* Error/Success Messages */}
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-700 text-sm">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+            <p className="text-green-700 text-sm">{success}</p>
+          </div>
+        )}
+
+        {/* Practicals List Tab */}
+        {activeTab === "practicals" && (
+          <div>
+            {!selectedPractical ? (
+              // Show practicals list
+              <div>
+                <h2 className="text-lg font-semibold mb-4">Practical List</h2>
+                {practicals.length === 0 ? (
+                  <p className="text-gray-500">No practicals added yet.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {practicals.map((pr) => (
+                      <div
+                        key={pr.id}
+                        className="border rounded-lg p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                        onClick={() => handlePracticalClick(pr)}
+                      >
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-semibold">
+                              PR-{pr.pr_no}: {pr.title}
+                            </p>
+                            <p className="text-sm text-gray-600">
+                              Language: {pr.language}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                pr.is_enabled
+                                  ? "bg-green-100 text-green-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {pr.is_enabled ? "Enabled" : "Disabled"}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEnableToggle(pr.id, pr.is_enabled);
+                              }}
+                              className={`px-3 py-1 rounded text-sm ${
+                                pr.is_enabled
+                                  ? "bg-red-100 text-red-700 hover:bg-red-200"
+                                  : "bg-green-100 text-green-700 hover:bg-green-200"
+                              }`}
+                            >
+                              {pr.is_enabled ? "Disable" : "Enable"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Show students for selected practical
+              <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <button
+                      onClick={() => {
+                        setSelectedPractical(null);
+                        setPracticalStudents(null);
+                      }}
+                      className="text-blue-600 hover:underline mb-2"
+                    >
+                      ← Back to Practicals
+                    </button>
+                    <h2 className="text-lg font-semibold">
+                      PR-{selectedPractical.pr_no}: {selectedPractical.title}
+                    </h2>
+                  </div>
+                  <button
+                    onClick={() => handleDownloadPDF(selectedPractical.id)}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+                  >
+                    📥 Download PDF
+                  </button>
+                </div>
+
+                {loadingStudents ? (
+                  <p className="text-gray-500">Loading students...</p>
+                ) : practicalStudents ? (
+                  <div>
+                    {/* Statistics */}
+                    <div className="grid grid-cols-4 gap-4 mb-6">
+                      <div className="bg-blue-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600">Total Students</p>
+                        <p className="text-2xl font-bold">{practicalStudents.stats.total_students}</p>
+                      </div>
+                      <div className="bg-green-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600">Submitted</p>
+                        <p className="text-2xl font-bold">{practicalStudents.stats.submitted_count}</p>
+                      </div>
+                      <div className="bg-red-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600">Not Submitted</p>
+                        <p className="text-2xl font-bold">{practicalStudents.stats.not_submitted_count}</p>
+                      </div>
+                      <div className="bg-yellow-50 p-4 rounded-lg">
+                        <p className="text-sm text-gray-600">Submission Rate</p>
+                        <p className="text-2xl font-bold">{practicalStudents.stats.submission_rate}%</p>
+                      </div>
+                    </div>
+
+                    {/* Submitted Students */}
+                    <div className="mb-6">
+                      <h3 className="text-lg font-semibold mb-3 text-green-700">
+                        ✅ Submitted Students ({practicalStudents.submitted.length})
+                      </h3>
+                      {practicalStudents.submitted.length === 0 ? (
+                        <p className="text-gray-500">No submissions yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {practicalStudents.submitted.map((student: any) => (
+                            <div
+                              key={student.student_id}
+                              className="border rounded-md p-3 bg-green-50"
+                            >
+                              <div className="flex justify-between items-center">
+                                <div>
+                                  <p className="font-medium">{student.name}</p>
+                                  <p className="text-sm text-gray-600">
+                                    PRN: {student.prn} | Roll: {student.roll}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Status: {student.execution_status} | 
+                                    Submitted: {new Date(student.submitted_at).toLocaleString()}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                    student.execution_status === "success"
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-red-100 text-red-800"
+                                  }`}
+                                >
+                                  {student.execution_status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Not Submitted Students */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3 text-red-700">
+                        ❌ Not Submitted Students ({practicalStudents.not_submitted.length})
+                      </h3>
+                      {practicalStudents.not_submitted.length === 0 ? (
+                        <p className="text-gray-500">All students have submitted! 🎉</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {practicalStudents.not_submitted.map((student: any) => (
+                            <div
+                              key={student.student_id}
+                              className="border rounded-md p-3 bg-red-50"
+                            >
+                              <p className="font-medium">{student.name}</p>
+                              <p className="text-sm text-gray-600">
+                                PRN: {student.prn} | Roll: {student.roll}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-gray-500">No data available.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Add Practical Tab */}
         {activeTab === "add" && (
           <div>
-            {/* Existing Practicals List */}
-            {practicals.length > 0 && (
-              <div className="mb-6">
-                <h2 className="font-semibold mb-3">Existing Practicals</h2>
-                <ul className="space-y-2">
-                  {practicals.map((pr) => (
-                    <li
-                      key={pr.id}
-                      className="p-3 bg-gray-50 rounded-md flex justify-between items-center"
-                    >
-                      <span className="font-medium">
-                        PR-{pr.pr_no}: {pr.title}
-                      </span>
-                      <span className="text-sm text-gray-600">
-                        {pr.language}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
             {/* PR Selector */}
             <label className="block font-medium mb-1">
               Select Practical Number
@@ -323,13 +552,6 @@ export default function TeacherSubjectDetailPage() {
             {/* Practical Form */}
             {selectedPr && (
               <form onSubmit={handleSubmit}>
-                {error && (
-                  <p className="text-red-600 text-sm mb-2">{error}</p>
-                )}
-                {success && (
-                  <p className="text-green-600 text-sm mb-2">{success}</p>
-                )}
-
                 <input
                   name="title"
                   placeholder="Practical Title"
@@ -371,7 +593,10 @@ export default function TeacherSubjectDetailPage() {
                 >
                   <option value="Python">Python</option>
                   <option value="Java">Java</option>
+                  <option value="C++">C++</option>
+                  <option value="C">C / OS</option>
                   <option value="SQL">SQL</option>
+                  <option value="OLAP">OLAP</option>
                 </select>
 
                 <textarea
@@ -392,117 +617,6 @@ export default function TeacherSubjectDetailPage() {
             )}
           </div>
         )}
-
-        {/* Review Submissions Tab */}
-        {activeTab === "review" && (
-          <div>
-            {error && (
-              <p className="text-red-600 text-sm mb-4">{error}</p>
-            )}
-            {success && (
-              <p className="text-green-600 text-sm mb-4">{success}</p>
-            )}
-
-            {loadingSubmissions ? (
-              <p className="text-gray-500">Loading submissions...</p>
-            ) : submissions.length === 0 ? (
-              <p className="text-gray-500">No submissions yet.</p>
-            ) : (
-              <div className="space-y-4">
-                {submissions.map((submission) => (
-                  <div
-                    key={submission.id}
-                    className="border rounded-lg p-4 bg-gray-50"
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <p className="font-semibold">
-                          {submission.student?.name || "Unknown Student"}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          PRN: {submission.student?.prn} | Roll: {submission.student?.roll}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          PR-{submission.pr_no}: {submission.practical?.title}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          submission.submission_status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : submission.submission_status === "rejected"
-                            ? "bg-red-100 text-red-800"
-                            : "bg-yellow-100 text-yellow-800"
-                        }`}
-                      >
-                        {submission.submission_status.charAt(0).toUpperCase() +
-                          submission.submission_status.slice(1)}
-                      </span>
-                    </div>
-
-                    <div className="mb-3">
-                      <p className="font-medium mb-1">Code:</p>
-                      <pre className="bg-gray-900 text-green-400 p-3 rounded-md text-sm overflow-x-auto">
-                        {submission.code}
-                      </pre>
-                    </div>
-
-                    {submission.output && (
-                      <div className="mb-3">
-                        <p className="font-medium mb-1">Execution Output:</p>
-                        <pre className="bg-gray-100 p-3 rounded-md text-sm overflow-x-auto">
-                          {submission.output}
-                        </pre>
-                      </div>
-                    )}
-
-                    {submission.teacher_feedback && (
-                      <div className="mb-3 p-2 bg-blue-50 rounded-md">
-                        <p className="text-sm">
-                          <strong>Your Feedback:</strong> {submission.teacher_feedback}
-                        </p>
-                      </div>
-                    )}
-
-                    {submission.submission_status === "pending" && (
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => {
-                            const feedback = prompt("Enter feedback (optional):");
-                            handleReview(submission.id, "approve", feedback || "");
-                          }}
-                          className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700"
-                        >
-                          Approve
-                        </button>
-                        <button
-                          onClick={() => {
-                            const feedback = prompt("Enter feedback (optional):");
-                            handleReview(submission.id, "reject", feedback || "");
-                          }}
-                          className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-
-                    <p className="text-xs text-gray-500 mt-2">
-                      Submitted: {new Date(submission.submitted_at).toLocaleString()}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        <button
-          onClick={() => router.back()}
-          className="mt-6 text-sm text-blue-600 hover:underline"
-        >
-          ← Back
-        </button>
       </div>
     </main>
   );
