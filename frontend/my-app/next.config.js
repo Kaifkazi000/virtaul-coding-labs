@@ -7,7 +7,7 @@ const nextConfig = {
       {
         source: "/api/:path*",
         destination: isProd
-          ? "https://virtual-coding-labs.onrender.com/api/:path*"
+          ? "https://virtaul-coding-labs.onrender.com/api/:path*"
           : "http://localhost:5000/api/:path*",
       },
     ];
