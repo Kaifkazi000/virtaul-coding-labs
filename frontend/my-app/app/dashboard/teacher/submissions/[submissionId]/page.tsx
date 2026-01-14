@@ -26,7 +26,7 @@ export default function TeacherSubmissionDetailPage() {
         }
 
         const res = await fetch(
-          `http://localhost:5000/api/teacher-dashboard/submission/${submissionId}`,
+          `/api/teacher-dashboard/submission/${submissionId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

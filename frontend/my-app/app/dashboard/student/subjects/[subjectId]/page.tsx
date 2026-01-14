@@ -27,7 +27,7 @@ export default function StudentSubjectPracticalsPage() {
 
         // Fetch practicals
         const practicalsRes = await fetch(
-          `http://localhost:5000/api/practicals/student/${subjectId}`,
+          `/api/practicals/student/${subjectId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -51,7 +51,7 @@ export default function StudentSubjectPracticalsPage() {
           Promise.all(
             sorted.map(async (pr: any) => {
               const subRes = await fetch(
-                `http://localhost:5000/api/submissions/student/${pr.id}`,
+                `/api/submissions/student/${pr.id}`,
                 {
                   headers: { Authorization: `Bearer ${token}` },
                 }
@@ -63,7 +63,7 @@ export default function StudentSubjectPracticalsPage() {
           Promise.all(
             sorted.map(async (pr: any) => {
               const uRes = await fetch(
-                `http://localhost:5000/api/execution/unlock-status/${pr.id}`,
+                `/api/execution/unlock-status/${pr.id}`,
                 {
                   headers: { Authorization: `Bearer ${token}` },
                 }
