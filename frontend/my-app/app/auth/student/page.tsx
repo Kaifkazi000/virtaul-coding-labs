@@ -1,11 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+
+/* =======================
+   STUDENT AUTH PAGE
+   Login first by default
+   Signup only via button
+======================= */
 
 export default function StudentAuthPage() {
   const router = useRouter();
-  const [isSignup, setIsSignup] = useState(true);
+  const searchParams = useSearchParams();
+
+  const mode = searchParams.get("mode"); // ?mode=signup
+  const [isSignup, setIsSignup] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -18,10 +29,26 @@ export default function StudentAuthPage() {
     semester: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  /* =======================
+     FORCE LOGIN FIRST
+  ======================= */
+  useEffect(() => {
+    if (mode === "signup") {
+      setIsSignup(true);
+    } else {
+      setIsSignup(false);
+    }
+  }, [mode]);
+
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  /* =======================
+     SUBMIT HANDLER
+  ======================= */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -58,22 +85,21 @@ export default function StudentAuthPage() {
         throw new Error(data.message || "Something went wrong");
       }
 
-      // ================= SIGNUP =================
+      /* ===== SIGNUP SUCCESS ===== */
       if (isSignup) {
         alert("Signup successful. Please login.");
-        setIsSignup(false); // switch to login
-        setLoading(false);
+        router.push("/auth/student"); // back to login
         return;
       }
 
-      // ================= LOGIN =================
-      // 1️⃣ Save token
-      localStorage.setItem(
-        "student_token",
-        data.session.access_token
-      );
+      /* ===== LOGIN SUCCESS ===== */
+      if (!data.session?.access_token) {
+        throw new Error("Login token not returned");
+      }
 
-      // 2️⃣ Fetch student profile
+      localStorage.setItem("student_token", data.session.access_token);
+      localStorage.setItem("student_logged_in", "true");
+
       const profileRes = await fetch(
         "http://localhost:5000/api/auth/student/me",
         {
@@ -84,14 +110,7 @@ export default function StudentAuthPage() {
       );
 
       const profile = await profileRes.json();
-
-      if (!profileRes.ok) {
-        throw new Error(profile.message || "Failed to load profile");
-      }
-
-      // 3️⃣ Save session data
       localStorage.setItem("student_data", JSON.stringify(profile));
-      localStorage.setItem("student_logged_in", "true");
 
       router.push("/dashboard/student");
     } catch (err: any) {
@@ -101,107 +120,157 @@ export default function StudentAuthPage() {
     }
   };
 
+  /* =======================
+     UI
+  ======================= */
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-6 rounded-lg shadow-md w-full max-w-sm">
-        <h1 className="text-2xl font-semibold text-center mb-4 text-gray-800">
-          {isSignup ? "Student Signup" : "Student Login"}
-        </h1>
+    <main className="min-h-screen bg-slate-100">
+      {/* ===== NAVBAR ===== */}
+      <nav className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-lg font-semibold">
+              Government College of Engineering, Chandrapur
+            </h1>
+            <p className="text-sm text-slate-300">
+              Virtual Coding Lab – Computer Science & Engineering
+            </p>
+          </div>
 
-        {error && (
-          <p className="mb-3 text-sm text-red-600 text-center">{error}</p>
-        )}
+          <button
+            onClick={() => router.push("/auth/student?mode=signup")}
+            className="border border-white/30 px-4 py-2 rounded-md text-sm hover:bg-white/10 transition"
+          >
+            Sign up
+          </button>
+        </div>
+      </nav>
 
-        <form onSubmit={handleSubmit}>
-          {isSignup && (
-            <>
-              <input
-                name="name"
-                placeholder="Full Name"
-                value={formData.name}
-                onChange={handleChange}
-                className="w-full mb-3 px-3 py-2 border rounded-md"
-                required
-              />
+      {/* ===== CONTENT ===== */}
+      <section className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 items-center px-6 py-16">
+        {/* LEFT IMAGE */}
+        <div className="hidden md:flex justify-center">
+          <Image
+            src="/student.webp"
+            alt="Student"
+            width={320}
+            height={320}
+            className="opacity-90"
+          />
+        </div>
 
-              <input
-                name="prn"
-                placeholder="PRN Number"
-                value={formData.prn}
-                onChange={handleChange}
-                className="w-full mb-3 px-3 py-2 border rounded-md"
-                required
-              />
+        {/* RIGHT FORM */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full mx-auto">
+          <h2 className="text-2xl font-bold text-slate-800 mb-1">
+            {isSignup ? "Student Signup" : "Student Login"}
+          </h2>
+          <p className="text-sm text-slate-500 mb-6">
+            CodeLab – Virtual Coding Laboratory
+          </p>
 
-              <input
-                name="roll"
-                placeholder="Roll Number"
-                value={formData.roll}
-                onChange={handleChange}
-                className="w-full mb-3 px-3 py-2 border rounded-md"
-                required
-              />
-
-              <select
-                name="semester"
-                value={formData.semester}
-                onChange={handleChange}
-                className="w-full mb-3 px-3 py-2 border rounded-md"
-                required
-              >
-                <option value="">Select Semester</option>
-                {Array.from({ length: 8 }, (_, i) => i + 1).map((sem) => (
-                  <option key={sem} value={sem}>
-                    Semester {sem}
-                  </option>
-                ))}
-              </select>
-            </>
+          {error && (
+            <p className="text-sm text-red-600 mb-4 text-center">
+              {error}
+            </p>
           )}
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Email"
-            value={formData.email}
-            onChange={handleChange}
-            className="w-full mb-3 px-3 py-2 border rounded-md"
-            required
-          />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {isSignup && (
+              <>
+                <input
+                  name="name"
+                  placeholder="Full Name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-600"
+                />
 
-          <input
-            type="password"
-            name="password"
-            placeholder="Password"
-            value={formData.password}
-            onChange={handleChange}
-            className="w-full mb-4 px-3 py-2 border rounded-md"
-            required
-          />
+                <input
+                  name="prn"
+                  placeholder="PRN Number"
+                  value={formData.prn}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border rounded-lg"
+                />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-black text-white py-2 rounded-md hover:bg-gray-800 disabled:opacity-60"
-          >
-            {loading
-              ? "Please wait..."
-              : isSignup
-              ? "Signup"
-              : "Login"}
-          </button>
-        </form>
+                <input
+                  name="roll"
+                  placeholder="Roll Number"
+                  value={formData.roll}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border rounded-lg"
+                />
 
-        <p className="text-sm text-center mt-4 text-gray-600">
-          {isSignup ? "Already have an account?" : "Don't have an account?"}{" "}
-          <button
-            onClick={() => setIsSignup(!isSignup)}
-            className="text-blue-600 font-medium hover:underline"
-          >
-            {isSignup ? "Login" : "Signup"}
-          </button>
-        </p>
-      </div>
+                <select
+                  name="semester"
+                  value={formData.semester}
+                  onChange={handleChange}
+                  required
+                  className="w-full px-4 py-3 border rounded-lg"
+                >
+                  <option value="">Select Semester</option>
+                  {[1,2,3,4,5,6,7,8].map((s) => (
+                    <option key={s} value={s}>
+                      Semester {s}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address"
+              value={formData.email}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 border rounded-lg"
+            />
+
+            <input
+              type="password"
+              name="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-3 border rounded-lg"
+            />
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-blue-700 text-white py-3 rounded-lg font-medium hover:bg-blue-800 transition disabled:opacity-60"
+            >
+              {loading
+                ? "Please wait..."
+                : isSignup
+                ? "Create Account"
+                : "Login"}
+            </button>
+          </form>
+
+          <p className="text-sm text-center mt-6 text-slate-600">
+            {isSignup ? "Already have an account?" : "Don’t have an account?"}{" "}
+            <button
+              onClick={() =>
+                router.push(
+                  isSignup
+                    ? "/auth/student"
+                    : "/auth/student?mode=signup"
+                )
+              }
+              className="text-blue-700 font-medium hover:underline"
+            >
+              {isSignup ? "Login" : "Sign up"}
+            </button>
+          </p>
+        </div>
+      </section>
     </main>
   );
 }
