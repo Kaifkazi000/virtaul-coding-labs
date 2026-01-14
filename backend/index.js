@@ -13,6 +13,7 @@ import submissionRoutes from "./routes/submission.route.js";
 import executionRoutes from "./routes/execution.route.js";
 import teacherDashboardRoutes from "./routes/teacherDashboard.route.js";
 import pdfRoutes from "./routes/pdf.route.js";
+import testRoutes from "./routes/test.routes.js";
 
 dotenv.config();
 
@@ -44,6 +45,7 @@ app.use("/api/submissions", submissionRoutes);
 app.use("/api/execution", executionRoutes);
 app.use("/api/teacher-dashboard", teacherDashboardRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api", testRoutes);
 
 app.listen(5000, () => {
   console.log("Backend running on http://localhost:5000");
