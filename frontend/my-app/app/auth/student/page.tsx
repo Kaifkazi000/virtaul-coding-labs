@@ -18,7 +18,7 @@ export default function StudentAuthPage() {
     semester: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -145,7 +145,7 @@ export default function StudentAuthPage() {
               <select
                 name="semester"
                 value={formData.semester}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange(e)}
+                onChange={handleChange}
                 className="w-full mb-3 px-3 py-2 border rounded-md"
                 required
               >
