@@ -34,7 +34,7 @@ export default function NewSubjectPage() {
       return;
     }
 
-    const res = await fetch("http://localhost:5000/api/subjects", {
+    const res = await fetch("/api/subjects", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -22,18 +22,24 @@ export default function StudentPracticalDetailPage() {
         return;
       }
 
-      // Fetch practical
-      const p = await fetch(
-        `http://localhost:5000/api/practicals/${practicalId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const pData = await p.json();
-      setPractical(pData);
-      setCode(pData.sample_code || "");
+      // Fetch practical (works in local + production)
+const p = await fetch(
+  `/api/practicals/${practicalId}`,
+  {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  }
+);
+
+const pData = await p.json();
+setPractical(pData);
+setCode(pData.sample_code || "");
+
 
       // Fetch submission (if exists)
       const s = await fetch(
-        `http://localhost:5000/api/submissions/student/${practicalId}`,
+        `/api/submissions/student/${practicalId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const sData = await s.json();
@@ -51,7 +57,7 @@ export default function StudentPracticalDetailPage() {
     setSuccess("");
     const token = localStorage.getItem("student_token");
 
-    const res = await fetch("http://localhost:5000/api/execution/execute", {
+    const res = await fetch("/api/execution/execute", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -78,7 +84,7 @@ export default function StudentPracticalDetailPage() {
 
       // Refresh submission
       const s = await fetch(
-        `http://localhost:5000/api/submissions/student/${practicalId}`,
+        `/api/submissions/student/${practicalId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
       const sData = await s.json();

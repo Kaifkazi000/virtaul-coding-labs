@@ -17,7 +17,7 @@ useEffect(() => {
       console.log("Teacher token:", token);
 
       const res = await fetch(
-        "http://localhost:5000/api/subject-instances/teacher",
+        "/api/subject-instances/teacher",
         {
           method: "GET",
           headers: {

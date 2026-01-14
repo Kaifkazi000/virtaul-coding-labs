@@ -40,7 +40,7 @@ export default function TeacherSubjectDetailPage() {
 
         // Fetch all teacher's subject instances to find this one
         const instancesRes = await fetch(
-          "http://localhost:5000/api/subject-instances/teacher",
+          "/api/subject-instances/teacher",
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -66,7 +66,7 @@ export default function TeacherSubjectDetailPage() {
 
         // Fetch practicals for this subject instance
         const practicalsRes = await fetch(
-          `http://localhost:5000/api/practicals/teacher/${subjectId}`,
+          `/api/practicals/teacher/${subjectId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -97,7 +97,7 @@ export default function TeacherSubjectDetailPage() {
       const token = localStorage.getItem("teacher_token");
 
       const res = await fetch(
-        `http://localhost:5000/api/teacher-dashboard/practical/${practicalId}/students`,
+        `/api/teacher-dashboard/practical/${practicalId}/students`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -129,7 +129,7 @@ export default function TeacherSubjectDetailPage() {
       const token = localStorage.getItem("teacher_token");
 
       const res = await fetch(
-        `http://localhost:5000/api/practicals/${practicalId}/enable`,
+        `/api/practicals/${practicalId}/enable`,
         {
           method: "PATCH",
           headers: {
@@ -150,7 +150,7 @@ export default function TeacherSubjectDetailPage() {
 
       // Refresh practicals list
       const practicalsRes = await fetch(
-        `http://localhost:5000/api/practicals/teacher/${subjectId}`,
+        `/api/practicals/teacher/${subjectId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -175,7 +175,7 @@ export default function TeacherSubjectDetailPage() {
       const token = localStorage.getItem("teacher_token");
 
       const res = await fetch(
-        `http://localhost:5000/api/pdf/practical/${practicalId}`,
+        `/api/pdf/practical/${practicalId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -221,7 +221,7 @@ export default function TeacherSubjectDetailPage() {
       const token = localStorage.getItem("teacher_token");
 
       const res = await fetch(
-        "http://localhost:5000/api/practicals",
+        "/api/practicals",
         {
           method: "POST",
           headers: {
@@ -251,7 +251,7 @@ export default function TeacherSubjectDetailPage() {
 
       // Refresh practicals list
       const practicalsRes = await fetch(
-        `http://localhost:5000/api/practicals/teacher/${subjectId}`,
+        `/api/practicals/teacher/${subjectId}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,

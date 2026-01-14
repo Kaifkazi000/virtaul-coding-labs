@@ -39,7 +39,7 @@ export default function StudentDashboard() {
         }
 
         const res = await fetch(
-          "http://localhost:5000/api/subject-instances/student",
+          "/api/subject-instances/student",
           {
             headers: {
               Authorization: `Bearer ${token}`,

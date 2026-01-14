@@ -18,7 +18,7 @@ export default function AddSubjectPage() {
     if (!token) return router.push("/auth/teacher");
 
     const res = await fetch(
-      "http://localhost:5000/api/subject-instances",
+      "/api/subject-instances",
       {
         method: "POST",
         headers: {
