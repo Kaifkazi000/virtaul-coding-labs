@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
+export const dynamic = "force-dynamic";
 
 /* =======================
    STUDENT AUTH PAGE
