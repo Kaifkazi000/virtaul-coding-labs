@@ -10,11 +10,11 @@ export default function StudentSubjectPracticalsPage() {
 
   const [practicals, setPracticals] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<Record<string, any>>({});
-  const [progress, setProgress] = useState<any>(null);
+  const [unlockMap, setUnlockMap] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Fetch practicals and submissions
+  // Fetch practicals + submission status + unlock status
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -47,63 +47,40 @@ export default function StudentSubjectPracticalsPage() {
         );
         setPracticals(sorted);
 
-        // Fetch progress
-        const progressRes = await fetch(
-          `http://localhost:5000/api/submissions/student/progress/${subjectId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        if (progressRes.ok) {
-          const progressData = await progressRes.json();
-          setProgress(progressData);
-
-          // Create a map of practical_id -> submission
-          const submissionMap: Record<string, any> = {};
-          progressData.submissions.forEach((sub: any) => {
-            // Find practical by pr_no
-            const practical = sorted.find((p: any) => p.pr_no === sub.pr_no);
-            if (practical) {
-              submissionMap[practical.id] = sub;
-            }
-          });
-          setSubmissions(submissionMap);
-        }
-
-        // Fetch individual submissions for each practical
-        const submissionPromises = sorted.map(async (pr: any) => {
-          try {
-            const subRes = await fetch(
-              `http://localhost:5000/api/submissions/student/${pr.id}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
-            if (subRes.ok) {
+        const [submissionResults, unlockResults] = await Promise.all([
+          Promise.all(
+            sorted.map(async (pr: any) => {
+              const subRes = await fetch(
+                `http://localhost:5000/api/submissions/student/${pr.id}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                }
+              );
               const subData = await subRes.json();
-              if (subData.submission) {
-                return { practicalId: pr.id, submission: subData.submission };
-              }
-            }
-          } catch (err) {
-            // Ignore errors for individual submissions
-          }
-          return null;
-        });
+              return { practicalId: pr.id, submission: subData.submission || null };
+            })
+          ),
+          Promise.all(
+            sorted.map(async (pr: any) => {
+              const uRes = await fetch(
+                `http://localhost:5000/api/execution/unlock-status/${pr.id}`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                }
+              );
+              const uData = await uRes.json();
+              return { practicalId: pr.id, isUnlocked: !!uData.is_unlocked };
+            })
+          ),
+        ]);
 
-        const submissionResults = await Promise.all(submissionPromises);
-        const newSubmissions: Record<string, any> = {};
-        submissionResults.forEach((result) => {
-          if (result) {
-            newSubmissions[result.practicalId] = result.submission;
-          }
-        });
-        setSubmissions((prev) => ({ ...prev, ...newSubmissions }));
+        const newSubs: Record<string, any> = {};
+        submissionResults.forEach((r) => (newSubs[r.practicalId] = r.submission));
+        setSubmissions(newSubs);
+
+        const newUnlock: Record<string, boolean> = {};
+        unlockResults.forEach((r) => (newUnlock[r.practicalId] = r.isUnlocked));
+        setUnlockMap(newUnlock);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -114,28 +91,18 @@ export default function StudentSubjectPracticalsPage() {
     fetchData();
   }, [subjectId, router]);
 
-  // Determine if a practical is unlocked
-  const isUnlocked = (prNo: number) => {
-    if (prNo === 1) return true; // First practical is always unlocked
-
-    // Check if previous practical is approved
-    const previousPr = practicals.find((p) => p.pr_no === prNo - 1);
-    if (!previousPr) return false;
-
-    const previousSubmission = submissions[previousPr.id];
-    return previousSubmission?.submission_status === "approved";
-  };
-
   const getStatusBadge = (submission: any) => {
     if (!submission) {
       return <span className="text-xs text-gray-500">Not submitted</span>;
     }
 
-    const status = submission.submission_status;
-    const styles = {
-      pending: "bg-yellow-100 text-yellow-800",
-      approved: "bg-green-100 text-green-800",
-      rejected: "bg-red-100 text-red-800",
+    const status = submission.execution_status || "unknown";
+    const styles: Record<string, string> = {
+      success: "bg-green-100 text-green-800",
+      failed: "bg-red-100 text-red-800",
+      timeout: "bg-yellow-100 text-yellow-800",
+      error: "bg-yellow-100 text-yellow-800",
+      unknown: "bg-gray-100 text-gray-800",
     };
 
     return (
@@ -144,7 +111,7 @@ export default function StudentSubjectPracticalsPage() {
           styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800"
         }`}
       >
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {String(status).charAt(0).toUpperCase() + String(status).slice(1)}
       </span>
     );
   };
@@ -155,11 +122,9 @@ export default function StudentSubjectPracticalsPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <h1 className="text-2xl font-semibold text-gray-800">Practicals</h1>
-          {progress && (
-            <div className="text-sm text-gray-600">
-              Progress: {progress.approved}/{practicals.length} Approved
-            </div>
-          )}
+          <div className="text-sm text-gray-600">
+            Total: {practicals.length}
+          </div>
         </div>
 
         {loading ? (
@@ -171,7 +136,7 @@ export default function StudentSubjectPracticalsPage() {
         ) : (
           <ul className="space-y-3">
             {practicals.map((pr) => {
-              const unlocked = isUnlocked(pr.pr_no);
+              const unlocked = !!unlockMap[pr.id];
               const submission = submissions[pr.id];
 
               return (
@@ -197,9 +162,9 @@ export default function StudentSubjectPracticalsPage() {
                       </p>
                       {getStatusBadge(submission)}
                     </div>
-                    {submission?.teacher_feedback && (
+                    {submission?.submitted_at && (
                       <p className="text-xs text-gray-600 mt-1">
-                        Feedback: {submission.teacher_feedback}
+                        Submitted: {new Date(submission.submitted_at).toLocaleString()}
                       </p>
                     )}
                   </div>

@@ -145,7 +145,7 @@ export default function StudentAuthPage() {
               <select
                 name="semester"
                 value={formData.semester}
-                onChange={handleChange}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => handleChange(e)}
                 className="w-full mb-3 px-3 py-2 border rounded-md"
                 required
               >

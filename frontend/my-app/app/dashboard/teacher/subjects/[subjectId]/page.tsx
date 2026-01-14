@@ -481,15 +481,27 @@ export default function TeacherSubjectDetailPage() {
                                     Submitted: {new Date(student.submitted_at).toLocaleString()}
                                   </p>
                                 </div>
-                                <span
-                                  className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                    student.execution_status === "success"
-                                      ? "bg-green-100 text-green-800"
-                                      : "bg-red-100 text-red-800"
-                                  }`}
-                                >
-                                  {student.execution_status}
-                                </span>
+                                <div className="flex flex-col items-end gap-2">
+                                  <span
+                                    className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                      student.execution_status === "success"
+                                        ? "bg-green-100 text-green-800"
+                                        : "bg-red-100 text-red-800"
+                                    }`}
+                                  >
+                                    {student.execution_status}
+                                  </span>
+                                  <button
+                                    onClick={() =>
+                                      router.push(
+                                        `/dashboard/teacher/submissions/${student.submission_id}`
+                                      )
+                                    }
+                                    className="px-3 py-1 rounded text-xs bg-blue-600 text-white hover:bg-blue-700"
+                                  >
+                                    View Code
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}
