@@ -53,6 +53,11 @@ export const addPractical = async (req, res) => {
     if (insertError)
       return res.status(400).json({ error: insertError.message });
 
+    // Prevent caching
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     res.status(201).json({ message: "Practical added successfully", practical: data });
   } catch (err) {
     console.error(err);
@@ -67,6 +72,35 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
   try {
     const { subjectInstanceId } = req.params;
 
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Authorization token missing" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !userData.user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    const teacherId = userData.user.id;
+
+    // Verify teacher owns this subject instance
+    const { data: subjectInstance, error: subjectError } = await supabase
+      .from("subject_instances")
+      .select("id, teacher_id")
+      .eq("id", subjectInstanceId)
+      .single();
+
+    if (subjectError || !subjectInstance) {
+      return res.status(404).json({ error: "Subject instance not found" });
+    }
+
+    if (subjectInstance.teacher_id !== teacherId) {
+      return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
+    }
+
     const { data, error } = await supabase
       .from("practicals")
       .select("*")
@@ -76,6 +110,11 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
     if (error) {
       return res.status(400).json({ error: error.message });
     }
+
+    // Prevent caching
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
 
     res.json(data);
   } catch (err) {

@@ -19,10 +19,26 @@ dotenv.config();
 
 const app = express();
 
+// CORS configuration - supports both localhost and production
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://virtaul-coding-labs.vercel.app",
+  "https://virtaul-coding-labs-j8o4.vercel.app",
+];
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+      
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all origins in production (or restrict as needed)
+      }
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
     exposedHeaders: ["Authorization"],

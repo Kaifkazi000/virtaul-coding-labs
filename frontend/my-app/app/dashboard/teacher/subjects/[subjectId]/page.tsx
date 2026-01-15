@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 
 export default function TeacherSubjectDetailPage() {
@@ -28,6 +28,39 @@ export default function TeacherSubjectDetailPage() {
     language: "Python",
   });
 
+  // Function to fetch practicals (reusable)
+  const fetchPracticals = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("teacher_token");
+      if (!token) return;
+
+      const practicalsRes = await fetch(
+        `/api/practicals/teacher/${subjectId}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: "no-store", // Prevent caching
+          method: "GET",
+        }
+      );
+
+      const practicalsData = await practicalsRes.json();
+
+      if (practicalsRes.ok && Array.isArray(practicalsData)) {
+        setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
+      } else {
+        console.error("Failed to fetch practicals:", practicalsData);
+        if (practicalsData.error) {
+          setError(practicalsData.error);
+        }
+      }
+    } catch (err: any) {
+      console.error("Error fetching practicals:", err);
+      setError(err.message || "Failed to fetch practicals");
+    }
+  }, [subjectId]);
+
   // Fetch subject instance info
   useEffect(() => {
     const fetchSubject = async () => {
@@ -45,6 +78,7 @@ export default function TeacherSubjectDetailPage() {
             headers: {
               Authorization: `Bearer ${token}`,
             },
+            cache: "no-store", // Prevent caching
           }
         );
 
@@ -65,20 +99,7 @@ export default function TeacherSubjectDetailPage() {
         setSubject(foundSubject);
 
         // Fetch practicals for this subject instance
-        const practicalsRes = await fetch(
-          `/api/practicals/teacher/${subjectId}`,
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-
-        const practicalsData = await practicalsRes.json();
-
-        if (practicalsRes.ok) {
-          setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
-        }
+        await fetchPracticals();
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -87,7 +108,7 @@ export default function TeacherSubjectDetailPage() {
     };
 
     fetchSubject();
-  }, [subjectId, router]);
+  }, [subjectId, router, fetchPracticals]);
 
   // Fetch students for selected practical
   const fetchPracticalStudents = async (practicalId: string) => {
@@ -149,19 +170,7 @@ export default function TeacherSubjectDetailPage() {
       }
 
       // Refresh practicals list
-      const practicalsRes = await fetch(
-        `/api/practicals/teacher/${subjectId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const practicalsData = await practicalsRes.json();
-      if (practicalsRes.ok) {
-        setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
-      }
+      await fetchPracticals();
 
       setSuccess(`Practical ${!currentEnabled ? "enabled" : "disabled"} successfully`);
       setTimeout(() => setSuccess(""), 3000);
@@ -248,23 +257,9 @@ export default function TeacherSubjectDetailPage() {
       }
 
       setSuccess(`PR-${selectedPr} added successfully`);
+      setError(""); // Clear any previous errors
 
-      // Refresh practicals list
-      const practicalsRes = await fetch(
-        `/api/practicals/teacher/${subjectId}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const practicalsData = await practicalsRes.json();
-      if (practicalsRes.ok) {
-        setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
-      }
-
-      // Reset form
+      // Reset form immediately
       setFormData({
         title: "",
         description: "",
@@ -274,6 +269,13 @@ export default function TeacherSubjectDetailPage() {
         language: "Python",
       });
       setSelectedPr("");
+
+      // Refresh practicals list with a small delay to ensure DB is updated
+      setTimeout(async () => {
+        await fetchPracticals();
+        // Switch to practicals tab to show the newly added practical
+        setActiveTab("practicals");
+      }, 500);
     } catch (err: any) {
       setError(err.message);
     }
@@ -313,10 +315,12 @@ export default function TeacherSubjectDetailPage() {
         {/* Tabs */}
         <div className="flex gap-4 mb-6 border-b">
           <button
-            onClick={() => {
+            onClick={async () => {
               setActiveTab("practicals");
               setSelectedPractical(null);
               setPracticalStudents(null);
+              // Refresh practicals when switching to this tab
+              await fetchPracticals();
             }}
             className={`pb-2 px-4 font-medium ${
               activeTab === "practicals"
