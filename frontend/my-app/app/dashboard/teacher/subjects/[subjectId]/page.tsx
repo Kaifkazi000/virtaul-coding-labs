@@ -340,6 +340,13 @@ export default function TeacherSubjectDetailPage() {
           >
             Add Practical
           </button>
+
+          <button
+            onClick={() => router.push(`/dashboard/teacher/subjects/${subjectId}/practicals`)}
+            className="ml-auto pb-2 px-4 font-medium text-blue-600 hover:underline"
+          >
+            Open Practicals Dashboard →
+          </button>
         </div>
 
         {/* Error/Success Messages */}
