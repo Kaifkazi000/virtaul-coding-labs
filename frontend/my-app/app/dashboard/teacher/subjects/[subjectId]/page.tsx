@@ -28,19 +28,26 @@ export default function TeacherSubjectDetailPage() {
     language: "Python",
   });
 
-  // Function to fetch practicals (reusable)
-  const fetchPracticals = useCallback(async () => {
+  // Function to fetch practicals (reusable) - ALWAYS fetches fresh data
+  const fetchPracticals = useCallback(async (showLoading = false) => {
     try {
       const token = localStorage.getItem("teacher_token");
-      if (!token) return;
+      if (!token) {
+        router.push("/auth/teacher");
+        return;
+      }
 
+      if (showLoading) setLoading(true);
+
+      // Force fresh fetch with timestamp to bypass any cache
       const practicalsRes = await fetch(
-        `/api/practicals/teacher/${subjectId}`,
+        `/api/practicals/teacher/${subjectId}?t=${Date.now()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
           },
-          cache: "no-store", // Prevent caching
+          cache: "no-store",
           method: "GET",
         }
       );
@@ -48,18 +55,24 @@ export default function TeacherSubjectDetailPage() {
       const practicalsData = await practicalsRes.json();
 
       if (practicalsRes.ok && Array.isArray(practicalsData)) {
+        console.log(`✅ Fetched ${practicalsData.length} practicals for subject ${subjectId}`);
         setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
+        setError(""); // Clear any previous errors
       } else {
-        console.error("Failed to fetch practicals:", practicalsData);
+        console.error("❌ Failed to fetch practicals:", practicalsData);
         if (practicalsData.error) {
           setError(practicalsData.error);
+        } else {
+          setError("Failed to fetch practicals. Please try refreshing.");
         }
       }
     } catch (err: any) {
-      console.error("Error fetching practicals:", err);
+      console.error("❌ Error fetching practicals:", err);
       setError(err.message || "Failed to fetch practicals");
+    } finally {
+      if (showLoading) setLoading(false);
     }
-  }, [subjectId]);
+  }, [subjectId, router]);
 
   // Fetch subject instance info
   useEffect(() => {
@@ -109,6 +122,31 @@ export default function TeacherSubjectDetailPage() {
 
     fetchSubject();
   }, [subjectId, router, fetchPracticals]);
+
+  // Refetch practicals when page becomes visible (user navigates back)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && subject && !loading) {
+        console.log("🔄 Page visible again, refreshing practicals...");
+        fetchPracticals();
+      }
+    };
+
+    const handleFocus = () => {
+      if (subject && !loading) {
+        console.log("🔄 Window focused, refreshing practicals...");
+        fetchPracticals();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [subject, loading, fetchPracticals]);
 
   // Fetch students for selected practical
   const fetchPracticalStudents = async (practicalId: string) => {
@@ -342,8 +380,15 @@ export default function TeacherSubjectDetailPage() {
           </button>
 
           <button
+            onClick={() => fetchPracticals(true)}
+            className="ml-auto pb-2 px-4 text-sm text-blue-600 hover:underline"
+            title="Refresh practicals list"
+          >
+            🔄 Refresh
+          </button>
+          <button
             onClick={() => router.push(`/dashboard/teacher/subjects/${subjectId}/practicals`)}
-            className="ml-auto pb-2 px-4 font-medium text-blue-600 hover:underline"
+            className="pb-2 px-4 text-sm text-blue-600 hover:underline"
           >
             Open Practicals Dashboard →
           </button>

@@ -45,8 +45,24 @@ export const addPractical = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
     }
 
+    // Check if PR number already exists for this subject instance
+    const { data: existingPractical, error: checkError } = await supabase
+      .from("practicals")
+      .select("id, pr_no")
+      .eq("subject_instance_id", subject_instance_id)
+      .eq("pr_no", pr_no)
+      .single();
+
+    if (existingPractical) {
+      return res.status(400).json({ 
+        error: `PR-${pr_no} already exists for this subject. Please edit the existing practical instead.` 
+      });
+    }
+
     // Set PR-1 to enabled by default
     const isEnabled = pr_no === 1;
+
+    console.log(`📝 Adding PR-${pr_no} for subject_instance ${subject_instance_id} by teacher ${teacherId}`);
 
     const { data, error: insertError } = await supabase
       .from("practicals")
@@ -69,8 +85,12 @@ export const addPractical = async (req, res) => {
       .select()
       .single();
 
-    if (insertError)
+    if (insertError) {
+      console.error(`❌ Failed to insert PR-${pr_no}:`, insertError);
       return res.status(400).json({ error: insertError.message });
+    }
+
+    console.log(`✅ Successfully added PR-${pr_no} (ID: ${data.id})`);
 
     // Prevent caching
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
@@ -127,15 +147,18 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
       .order("pr_no");
 
     if (error) {
+      console.error(`❌ Failed to fetch practicals for subject ${subjectInstanceId}:`, error);
       return res.status(400).json({ error: error.message });
     }
+
+    console.log(`✅ Fetched ${data?.length || 0} practicals for subject_instance ${subjectInstanceId}`);
 
     // Prevent caching
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
 
-    res.json(data);
+    res.json(data || []);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

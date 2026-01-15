@@ -19,17 +19,31 @@ export default function TeacherPracticalsDashboardPage() {
   const [success, setSuccess] = useState("");
 
   const fetchPracticals = useCallback(async () => {
-    const token = localStorage.getItem("teacher_token");
-    if (!token) return;
+    try {
+      const token = localStorage.getItem("teacher_token");
+      if (!token) {
+        router.push("/auth/teacher");
+        return;
+      }
 
-    const res = await fetch(`/api/practicals/teacher/${subjectId}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Failed to fetch practicals");
-    setPracticals(Array.isArray(data) ? data.sort((a: any, b: any) => a.pr_no - b.pr_no) : []);
-  }, [subjectId]);
+      // Force fresh fetch with timestamp to bypass any cache
+      const res = await fetch(`/api/practicals/teacher/${subjectId}?t=${Date.now()}`, {
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+        },
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch practicals");
+      console.log(`✅ Practicals Dashboard: Fetched ${Array.isArray(data) ? data.length : 0} practicals`);
+      setPracticals(Array.isArray(data) ? data.sort((a: any, b: any) => a.pr_no - b.pr_no) : []);
+      setError(""); // Clear errors on success
+    } catch (err: any) {
+      console.error("❌ Error fetching practicals:", err);
+      setError(err.message || "Failed to fetch practicals");
+    }
+  }, [subjectId, router]);
 
   useEffect(() => {
     const load = async () => {
