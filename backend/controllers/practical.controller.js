@@ -14,6 +14,10 @@ export const addPractical = async (req, res) => {
       language,
     } = req.body;
 
+    if (!subject_instance_id || !pr_no || !title || !language) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
     const authHeader = req.headers.authorization;
     if (!authHeader)
       return res.status(401).json({ error: "Authorization token missing" });
@@ -26,10 +30,25 @@ export const addPractical = async (req, res) => {
 
     const teacherId = userData.user.id;
 
+    // Verify teacher owns this subject instance
+    const { data: subjectInstance, error: subjectError } = await supabase
+      .from("subject_instances")
+      .select("id, teacher_id")
+      .eq("id", subject_instance_id)
+      .single();
+
+    if (subjectError || !subjectInstance) {
+      return res.status(404).json({ error: "Subject instance not found" });
+    }
+
+    if (subjectInstance.teacher_id !== teacherId) {
+      return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
+    }
+
     // Set PR-1 to enabled by default
     const isEnabled = pr_no === 1;
 
-    const { data, insertError } = await supabase
+    const { data, error: insertError } = await supabase
       .from("practicals")
       .insert([
         {
@@ -164,12 +183,12 @@ export const enablePractical = async (req, res) => {
       .eq("id", practical.subject_instance_id)
       .single();
 
-    if (practicalError || !practical) {
-      return res.status(404).json({ error: "Practical not found" });
+    if (instanceError || !subjectInstance) {
+      return res.status(404).json({ error: "Subject instance not found" });
     }
 
     // Check if teacher owns this practical's subject instance
-    if (practical.subject_instances.teacher_id !== teacherId) {
+    if (subjectInstance.teacher_id !== teacherId) {
       return res.status(403).json({
         error: "You don't have permission to modify this practical",
       });
