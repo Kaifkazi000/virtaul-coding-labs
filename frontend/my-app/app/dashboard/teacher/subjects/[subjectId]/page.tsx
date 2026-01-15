@@ -565,11 +565,14 @@ export default function TeacherSubjectDetailPage() {
               className="w-full mb-4 px-3 py-2 border rounded-md"
             >
               <option value="">-- Select PR --</option>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => (
-                <option key={num} value={num}>
-                  PR-{num}
-                </option>
-              ))}
+              {Array.from({ length: 10 }, (_, i) => i + 1).map((num) => {
+                const alreadyExists = practicals.some((p) => p.pr_no === num);
+                return (
+                  <option key={num} value={num} disabled={alreadyExists}>
+                    {alreadyExists ? `PR-${num} (already added)` : `PR-${num}`}
+                  </option>
+                );
+              })}
             </select>
 
             {/* Practical Form */}
