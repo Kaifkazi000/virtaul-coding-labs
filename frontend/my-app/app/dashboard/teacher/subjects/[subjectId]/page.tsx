@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 export default function TeacherSubjectDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const subjectId = params.subjectId as string;
+  const subjectInstanceId = params.subjectId as string;
 
   const [subject, setSubject] = useState<any>(null);
   const [practicals, setPracticals] = useState<any[]>([]);
@@ -40,8 +40,7 @@ export default function TeacherSubjectDetailPage() {
       if (showLoading) setLoading(true);
 
       // Force fresh fetch with timestamp to bypass any cache
-      const practicalsRes = await fetch(
-        `/api/practicals/teacher/${subjectId}?t=${Date.now()}`,
+      const practicalsRes = await fetch(`/api/practicals/teacher/${subjectInstanceId}?t=${Date.now()}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -55,7 +54,7 @@ export default function TeacherSubjectDetailPage() {
       const practicalsData = await practicalsRes.json();
 
       if (practicalsRes.ok && Array.isArray(practicalsData)) {
-        console.log(`✅ Fetched ${practicalsData.length} practicals for subject ${subjectId}`);
+        console.log(`✅ Fetched ${practicalsData.length} practicals for subject ${subjectInstanceId}`);
         setPracticals(practicalsData.sort((a: any, b: any) => a.pr_no - b.pr_no));
         setError(""); // Clear any previous errors
       } else {
@@ -72,7 +71,7 @@ export default function TeacherSubjectDetailPage() {
     } finally {
       if (showLoading) setLoading(false);
     }
-  }, [subjectId, router]);
+  }, [subjectInstanceId, router]);
 
   // Fetch subject instance info
   useEffect(() => {
@@ -102,7 +101,7 @@ export default function TeacherSubjectDetailPage() {
         }
 
         const foundSubject = instancesData.find(
-          (s: any) => s.id === subjectId
+          (s: any) => s.id === subjectInstanceId
         );
 
         if (!foundSubject) {
@@ -121,7 +120,7 @@ export default function TeacherSubjectDetailPage() {
     };
 
     fetchSubject();
-  }, [subjectId, router, fetchPracticals]);
+  }, [subjectInstanceId, router, fetchPracticals]);
 
   // Refetch practicals when page becomes visible (user navigates back)
   useEffect(() => {
@@ -276,9 +275,9 @@ export default function TeacherSubjectDetailPage() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            subject_instance_id: subjectId,
-            pr_no: selectedPr,
-            title: formData.title,
+  subject_instance_id: subjectInstanceId,
+  pr_no: selectedPr,
+  title: formData.title,
             description: formData.description,
             task: formData.task,
             theory: formData.theory,
@@ -387,7 +386,7 @@ export default function TeacherSubjectDetailPage() {
             🔄 Refresh
           </button>
           <button
-            onClick={() => router.push(`/dashboard/teacher/subjects/${subjectId}/practicals`)}
+            onClick={() => router.push(`/dashboard/teacher/subjects/${subjectInstanceId}/practicals`)}
             className="pb-2 px-4 text-sm text-blue-600 hover:underline"
           >
             Open Practicals Dashboard →

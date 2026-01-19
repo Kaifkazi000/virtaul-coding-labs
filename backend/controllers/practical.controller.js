@@ -1,6 +1,5 @@
 import { supabase } from "../config/supabase.js";
 
-// TEACHER: Add practical
 export const addPractical = async (req, res) => {
   try {
     const {
@@ -19,51 +18,48 @@ export const addPractical = async (req, res) => {
     }
 
     const authHeader = req.headers.authorization;
-    if (!authHeader)
+    if (!authHeader) {
       return res.status(401).json({ error: "Authorization token missing" });
+    }
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: userData, error } = await supabase.auth.getUser(token);
 
-    if (error || !userData.user)
+    // 🔐 Validate teacher identity
+    const { data: userData, error } = await supabase.auth.getUser(token);
+    if (error || !userData?.user) {
       return res.status(401).json({ error: "Invalid token" });
+    }
 
     const teacherId = userData.user.id;
 
-    // Verify teacher owns this subject instance
-    const { data: subjectInstance, error: subjectError } = await supabase
+    // 🔎 Verify ownership
+    const { data: subjectInstance } = await supabase
       .from("subject_instances")
       .select("id, teacher_id")
       .eq("id", subject_instance_id)
       .single();
 
-    if (subjectError || !subjectInstance) {
+    if (!subjectInstance) {
       return res.status(404).json({ error: "Subject instance not found" });
     }
 
     if (subjectInstance.teacher_id !== teacherId) {
-      return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
+      return res.status(403).json({ error: "Unauthorized" });
     }
 
-    // Check if PR number already exists for this subject instance
-    const { data: existingPractical, error: checkError } = await supabase
+    // 🚫 Prevent duplicate PR
+    const { data: existing } = await supabase
       .from("practicals")
-      .select("id, pr_no")
+      .select("id")
       .eq("subject_instance_id", subject_instance_id)
       .eq("pr_no", pr_no)
-      .single();
+      .maybeSingle();
 
-    if (existingPractical) {
-      return res.status(400).json({ 
-        error: `PR-${pr_no} already exists for this subject. Please edit the existing practical instead.` 
-      });
+    if (existing) {
+      return res.status(400).json({ error: `PR-${pr_no} already exists` });
     }
 
-    // Set PR-1 to enabled by default
-    const isEnabled = pr_no === 1;
-
-    console.log(`📝 Adding PR-${pr_no} for subject_instance ${subject_instance_id} by teacher ${teacherId}`);
-
+    // ✅ INSERT (SERVICE ROLE → NO RLS ISSUE)
     const { data, error: insertError } = await supabase
       .from("practicals")
       .insert([
@@ -77,32 +73,29 @@ export const addPractical = async (req, res) => {
           theory,
           language,
           created_by: teacherId,
-          is_enabled: isEnabled,
-          enabled_at: isEnabled ? new Date().toISOString() : null,
-          enabled_by: isEnabled ? teacherId : null,
+          is_enabled: pr_no === 1,
+          enabled_at: pr_no === 1 ? new Date().toISOString() : null,
+          enabled_by: pr_no === 1 ? teacherId : null,
         },
       ])
       .select()
       .single();
 
     if (insertError) {
-      console.error(`❌ Failed to insert PR-${pr_no}:`, insertError);
+      console.error("INSERT FAILED:", insertError);
       return res.status(400).json({ error: insertError.message });
     }
 
-    console.log(`✅ Successfully added PR-${pr_no} (ID: ${data.id})`);
-
-    // Prevent caching
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-
-    res.status(201).json({ message: "Practical added successfully", practical: data });
+    res.status(201).json({
+      message: "Practical added successfully",
+      practical: data,
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 /**
  * TEACHER: Get own practicals for a subject instance

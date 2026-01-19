@@ -6,7 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 export default function StudentSubjectPracticalsPage() {
   const router = useRouter();
   const params = useParams();
-  const subjectId = params.subjectId as string;
+  const subjectInstanceId = params.subjectId as string;
+
 
   const [practicals, setPracticals] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<Record<string, any>>({});

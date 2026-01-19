@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 export default function TeacherPracticalsDashboardPage() {
   const router = useRouter();
   const params = useParams();
-  const subjectId = params.subjectId as string;
+  const subjectInstanceId = params.subjectId as string;
 
   const [subject, setSubject] = useState<any>(null);
   const [practicals, setPracticals] = useState<any[]>([]);
@@ -27,8 +27,8 @@ export default function TeacherPracticalsDashboardPage() {
       }
 
       // Force fresh fetch with timestamp to bypass any cache
-      const res = await fetch(`/api/practicals/teacher/${subjectId}?t=${Date.now()}`, {
-        headers: { 
+      const res = await fetch(`/api/practicals/teacher/${subjectInstanceId}?t=${Date.now()}`, {
+        headers: {
           Authorization: `Bearer ${token}`,
           "Cache-Control": "no-cache",
         },
@@ -43,7 +43,7 @@ export default function TeacherPracticalsDashboardPage() {
       console.error("❌ Error fetching practicals:", err);
       setError(err.message || "Failed to fetch practicals");
     }
-  }, [subjectId, router]);
+  }, [subjectInstanceId, router]);
 
   useEffect(() => {
     const load = async () => {
@@ -61,7 +61,7 @@ export default function TeacherPracticalsDashboardPage() {
         const instances = await instancesRes.json();
         if (!instancesRes.ok) throw new Error("Failed to load subject instances");
 
-        const found = instances.find((s: any) => s.id === subjectId);
+        const found = instances.find((s: any) => s.id === subjectInstanceId);
         if (!found) throw new Error("Subject instance not found");
         setSubject(found);
 
@@ -73,7 +73,7 @@ export default function TeacherPracticalsDashboardPage() {
       }
     };
     load();
-  }, [router, subjectId, fetchPracticals]);
+  }, [router, subjectInstanceId, fetchPracticals]);
 
   const fetchPracticalStudents = async (practicalId: string) => {
     setLoadingStudents(true);
@@ -207,9 +207,8 @@ export default function TeacherPracticalsDashboardPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium ${
-                            pr.is_enabled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                          }`}
+                          className={`px-3 py-1 rounded-full text-xs font-medium ${pr.is_enabled ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                            }`}
                         >
                           {pr.is_enabled ? "Enabled" : "Disabled"}
                         </span>
@@ -218,11 +217,10 @@ export default function TeacherPracticalsDashboardPage() {
                             e.stopPropagation();
                             handleEnableToggle(pr.id, pr.is_enabled);
                           }}
-                          className={`px-3 py-1 rounded text-sm ${
-                            pr.is_enabled
+                          className={`px-3 py-1 rounded text-sm ${pr.is_enabled
                               ? "bg-red-100 text-red-700 hover:bg-red-200"
                               : "bg-green-100 text-green-700 hover:bg-green-200"
-                          }`}
+                            }`}
                         >
                           {pr.is_enabled ? "Disable" : "Enable"}
                         </button>
@@ -304,11 +302,10 @@ export default function TeacherPracticalsDashboardPage() {
                             </div>
                             <div className="flex flex-col items-end gap-2">
                               <span
-                                className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                  student.execution_status === "success"
+                                className={`px-3 py-1 rounded-full text-xs font-medium ${student.execution_status === "success"
                                     ? "bg-green-100 text-green-800"
                                     : "bg-red-100 text-red-800"
-                                }`}
+                                  }`}
                               >
                                 {student.execution_status}
                               </span>
