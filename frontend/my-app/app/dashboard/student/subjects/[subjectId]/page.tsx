@@ -28,7 +28,7 @@ export default function StudentSubjectPracticalsPage() {
 
         // Fetch practicals
         const practicalsRes = await fetch(
-          `/api/practicals/student/${subjectId}`,
+          `/api/practicals/student/${subjectInstanceId}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -90,7 +90,7 @@ export default function StudentSubjectPracticalsPage() {
     };
 
     fetchData();
-  }, [subjectId, router]);
+  }, [subjectInstanceId, router]);
 
   const getStatusBadge = (submission: any) => {
     if (!submission) {
@@ -108,9 +108,8 @@ export default function StudentSubjectPracticalsPage() {
 
     return (
       <span
-        className={`px-2 py-1 rounded-full text-xs font-medium ${
-          styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800"
-        }`}
+        className={`px-2 py-1 rounded-full text-xs font-medium ${styles[status as keyof typeof styles] || "bg-gray-100 text-gray-800"
+          }`}
       >
         {String(status).charAt(0).toUpperCase() + String(status).slice(1)}
       </span>
@@ -150,11 +149,10 @@ export default function StudentSubjectPracticalsPage() {
                       );
                     }
                   }}
-                  className={`border rounded-md p-4 flex justify-between items-center ${
-                    unlocked
-                      ? "bg-gray-50 cursor-pointer hover:bg-gray-100"
-                      : "bg-gray-200 cursor-not-allowed opacity-60"
-                  }`}
+                  className={`border rounded-md p-4 flex justify-between items-center ${unlocked
+                    ? "bg-gray-50 cursor-pointer hover:bg-gray-100"
+                    : "bg-gray-200 cursor-not-allowed opacity-60"
+                    }`}
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-1">
