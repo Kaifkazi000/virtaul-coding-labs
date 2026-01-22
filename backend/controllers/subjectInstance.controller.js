@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 /**
  * TEACHER: Create subject instance
@@ -6,6 +6,11 @@ import { supabase } from "../config/supabase.js";
 export const createSubjectInstance = async (req, res) => {
   try {
     const { subject_name, subject_code, semester } = req.body;
+
+    const sem = Number(semester);
+    if (isNaN(sem) || sem < 1 || sem > 12) {
+      return res.status(400).json({ error: "Semester must be a number between 1 and 12" });
+    }
 
     const authHeader = req.headers.authorization;
     if (!authHeader)
@@ -19,7 +24,7 @@ export const createSubjectInstance = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { data, insertError } = await supabase
+    const { data, insertError } = await supabaseAdmin
       .from("subject_instances")
       .insert([
         {
@@ -59,7 +64,7 @@ export const getTeacherSubjectInstances = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { data, fetchError } = await supabase
+    const { data, fetchError } = await supabaseAdmin
       .from("subject_instances")
       .select("*")
       .eq("teacher_id", teacherId)
@@ -91,8 +96,8 @@ export const getStudentSubjectInstances = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    // get student semester
-    const { data: student, error: studentError } = await supabase
+    // get student semester using admin client to ensure we see the profile
+    const { data: student, error: studentError } = await supabaseAdmin
       .from("studentss")
       .select("semester")
       .eq("auth_user_id", studentAuthId)
@@ -102,8 +107,7 @@ export const getStudentSubjectInstances = async (req, res) => {
       return res.status(400).json({ error: "Student profile not found" });
 
     // Fetch subject instances matching student's semester
-    // Note: If is_active is NULL, we treat it as active (backward compatibility)
-    const { data, fetchError } = await supabase
+    const { data, fetchError } = await supabaseAdmin
       .from("subject_instances")
       .select("*")
       .eq("semester", student.semester)
@@ -115,7 +119,7 @@ export const getStudentSubjectInstances = async (req, res) => {
     }
 
     console.log(`Found ${data?.length || 0} subject instances for semester ${student.semester}`);
-    
+
     res.json(data || []);
   } catch {
     res.status(500).json({ error: "Server error" });

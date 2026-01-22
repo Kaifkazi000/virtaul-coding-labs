@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 /**
  * TEACHER: Get submitted and not-submitted students for a practical
@@ -23,7 +23,7 @@ export const getPracticalStudents = async (req, res) => {
     const teacherId = userData.user.id;
 
     // Verify teacher owns the practical's subject instance
-    const { data: practical, error: practicalError } = await supabase
+    const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
       .select(
         `
@@ -53,8 +53,13 @@ export const getPracticalStudents = async (req, res) => {
     }
 
     // Get all students enrolled in this subject instance (by semester)
-    const semester = practical.subject_instances.semester;
-    const { data: allStudents, error: studentsError } = await supabase
+    const rawSemester = practical.subject_instances?.semester ?? practical.subject_instances?.[0]?.semester;
+    const semester = Math.abs(rawSemester || 1);
+
+    console.log(`[DEBUG] Practical: ${practical.title}, Raw Semester: ${rawSemester}, Final Semester: ${semester}`);
+
+    // 🚀 FIXED: use supabaseAdmin for the student query to bypass user session limits
+    const { data: allStudents, error: studentsError } = await supabaseAdmin
       .from("studentss")
       .select("id, name, prn, roll, email")
       .eq("semester", semester);
@@ -64,7 +69,7 @@ export const getPracticalStudents = async (req, res) => {
     }
 
     // Get all submissions for this practical
-    const { data: submissions, error: submissionsError } = await supabase
+    const { data: submissions, error: submissionsError } = await supabaseAdmin
       .from("submissions")
       .select(
         `
@@ -99,7 +104,7 @@ export const getPracticalStudents = async (req, res) => {
 
     // Separate into submitted and not-submitted
     const submitted = [];
-    const notSubmitted = [];
+    const not_submitted = [];
 
     allStudents.forEach((student) => {
       const submission = submissionMap.get(student.id);
@@ -116,7 +121,7 @@ export const getPracticalStudents = async (req, res) => {
           submission_id: submission.id,
         });
       } else {
-        notSubmitted.push({
+        not_submitted.push({
           student_id: student.id,
           name: student.name,
           prn: student.prn,
@@ -126,25 +131,34 @@ export const getPracticalStudents = async (req, res) => {
       }
     });
 
-    res.json({
+    const responseData = {
       practical: {
         id: practical.id,
         pr_no: practical.pr_no,
         title: practical.title,
-        subject_name: practical.subject_instances.subject_name,
-        semester: practical.subject_instances.semester,
+        subject_name: (practical.subject_instances?.subject_name) || (practical.subject_instances?.[0]?.subject_name),
+        semester: semester,
       },
       submitted: submitted.sort((a, b) => a.name.localeCompare(b.name)),
-      not_submitted: notSubmitted.sort((a, b) => a.name.localeCompare(b.name)),
+      not_submitted: not_submitted.sort((a, b) => a.name.localeCompare(b.name)),
       stats: {
         total_students: allStudents.length,
         submitted_count: submitted.length,
-        not_submitted_count: notSubmitted.length,
-        submission_rate: allStudents.length > 0 
-          ? ((submitted.length / allStudents.length) * 100).toFixed(2) 
+        not_submitted_count: not_submitted.length,
+        submission_rate: allStudents.length > 0
+          ? ((submitted.length / allStudents.length) * 100).toFixed(2)
           : 0,
       },
-    });
+    };
+
+    console.log(`[DEBUG] getPracticalStudents success for PR-${practical.pr_no}. Total Students: ${allStudents.length}`);
+
+    // Prevent caching
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
+    res.json(responseData);
   } catch (err) {
     console.error("Error fetching practical students:", err);
     res.status(500).json({ error: "Server error" });
@@ -173,8 +187,8 @@ export const getStudentSubmissionDetail = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    // Get submission with all related data
-    const { data: submission, error: submissionError } = await supabase
+    // Get submission with all related data using ADMIN client
+    const { data: submission, error: submissionError } = await supabaseAdmin
       .from("submissions")
       .select(
         `
@@ -271,7 +285,7 @@ export const getSubjectInstancePracticals = async (req, res) => {
     const teacherId = userData.user.id;
 
     // Verify teacher owns this subject instance
-    const { data: subjectInstance, error: instanceError } = await supabase
+    const { data: subjectInstance, error: instanceError } = await supabaseAdmin
       .from("subject_instances")
       .select("id, subject_name, semester, teacher_id")
       .eq("id", subjectInstanceId)
@@ -288,7 +302,7 @@ export const getSubjectInstancePracticals = async (req, res) => {
     }
 
     // Get all practicals
-    const { data: practicals, error: practicalsError } = await supabase
+    const { data: practicals, error: practicalsError } = await supabaseAdmin
       .from("practicals")
       .select("id, pr_no, title, is_enabled")
       .eq("subject_instance_id", subjectInstanceId)
@@ -299,15 +313,18 @@ export const getSubjectInstancePracticals = async (req, res) => {
     }
 
     // Get total students in this semester
-    const { count: totalStudents } = await supabase
+    const semesterForStats = Math.abs(subjectInstance.semester || 1);
+    const { count: totalStudents } = await supabaseAdmin
       .from("studentss")
       .select("*", { count: "exact", head: true })
-      .eq("semester", subjectInstance.semester);
+      .eq("semester", semesterForStats);
+
+    console.log(`[DEBUG] getSubjectInstancePracticals success for instance ${subjectInstanceId}. Semester: ${semesterForStats}, Total Students: ${totalStudents}`);
 
     // Get submission counts for each practical
     const practicalsWithStats = await Promise.all(
       practicals.map(async (practical) => {
-        const { count: submittedCount } = await supabase
+        const { count: submittedCount } = await supabaseAdmin
           .from("submissions")
           .select("*", { count: "exact", head: true })
           .eq("practical_id", practical.id)

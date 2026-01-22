@@ -100,6 +100,7 @@ export default function TeacherSubjectDetailPage() {
         });
 
         const instancesData = await instancesRes.json();
+        console.log("[DEBUG] fetchSubject result:", instancesData);
 
         if (!instancesRes.ok) {
           throw new Error("Failed to load subject instances");
@@ -155,9 +156,11 @@ export default function TeacherSubjectDetailPage() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        cache: "no-store",
       });
 
       const data = await res.json();
+      console.log(`[DEBUG] fetchPracticalStudents result for ${practicalId}:`, data);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to fetch students");

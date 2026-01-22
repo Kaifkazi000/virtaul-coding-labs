@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 // ================= STUDENT SIGNUP =================
 export const studentSignup = async (req, res) => {
@@ -8,6 +8,13 @@ export const studentSignup = async (req, res) => {
     if (!name || !email || !password || !prn || !roll || !semester) {
       return res.status(400).json({
         message: "All fields are required (including semester)",
+      });
+    }
+
+    const sem = Number(semester);
+    if (isNaN(sem) || sem < 1 || sem > 12) {
+      return res.status(400).json({
+        message: "Semester must be a number between 1 and 12",
       });
     }
 
@@ -25,8 +32,8 @@ export const studentSignup = async (req, res) => {
       });
     }
 
-    // 2️⃣ Insert student profile into studentss table
-    const { error: dbError } = await supabase
+    // 2️⃣ Insert student profile into studentss table using ADMIN client
+    const { error: dbError } = await supabaseAdmin
       .from("studentss")
       .insert([
         {

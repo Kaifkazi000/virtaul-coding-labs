@@ -17,6 +17,12 @@ export default function AddSubjectPage() {
     const token = localStorage.getItem("teacher_token");
     if (!token) return router.push("/auth/teacher");
 
+    const sem = Number(form.semester);
+    if (isNaN(sem) || sem < 1 || sem > 12) {
+      alert("Semester must be a number between 1 and 12");
+      return;
+    }
+
     const res = await fetch(
       "/api/subject-instances",
       {
@@ -28,7 +34,7 @@ export default function AddSubjectPage() {
         body: JSON.stringify({
           subject_name: form.subject_name,
           subject_code: form.subject_code,
-          semester: Number(form.semester),
+          semester: sem,
         }),
       }
     );
@@ -36,7 +42,7 @@ export default function AddSubjectPage() {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.message);
+      alert(data.error || data.message || "Failed to create subject");
       return;
     }
 
