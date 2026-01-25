@@ -69,23 +69,23 @@ export default function TeacherPracticalsDashboardPage() {
     load();
   }, [router, subjectInstanceId, fetchPracticals]);
 
-  const handleEnableToggle = async (practicalId: string, currentEnabled: boolean) => {
+  const handleUnlockToggle = async (practicalId: string, currentUnlocked: boolean) => {
     setError("");
     try {
       const token = localStorage.getItem("teacher_token");
-      const res = await fetch(`/api/practicals/${practicalId}/enable`, {
+      const res = await fetch(`/api/practicals/${practicalId}/unlock`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ enabled: !currentEnabled }),
+        body: JSON.stringify({ unlocked: !currentUnlocked }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update practical");
 
       await fetchPracticals();
-      setSuccess(`Practical ${!currentEnabled ? "enabled" : "disabled"} successfully`);
+      setSuccess(`Practical ${!currentUnlocked ? "unlocked" : "locked"} successfully`);
       setTimeout(() => setSuccess(""), 2500);
     } catch (e: any) {
       setError(e.message);
@@ -163,25 +163,25 @@ export default function TeacherPracticalsDashboardPage() {
 
                   <div className="flex items-center gap-3">
                     <span
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pr.is_enabled
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-500"
+                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${pr.is_unlocked
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-500"
                         }`}
                     >
-                      {pr.is_enabled ? "Active" : "Disabled"}
+                      {pr.is_unlocked ? "Unlocked" : "Locked"}
                     </span>
 
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleEnableToggle(pr.id, pr.is_enabled);
+                        handleUnlockToggle(pr.id, pr.is_unlocked);
                       }}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${pr.is_enabled
-                          ? "bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
-                          : "bg-green-50 text-green-600 hover:bg-green-500 hover:text-white"
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all shadow-sm ${pr.is_unlocked
+                        ? "bg-red-50 text-red-600 hover:bg-red-500 hover:text-white"
+                        : "bg-green-50 text-green-600 hover:bg-green-500 hover:text-white"
                         }`}
                     >
-                      {pr.is_enabled ? "Disable" : "Enable"}
+                      {pr.is_unlocked ? "Lock" : "Unlock"}
                     </button>
 
                     <button

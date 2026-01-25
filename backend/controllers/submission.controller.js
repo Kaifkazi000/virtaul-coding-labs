@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 /**
  * MOCK CODE EXECUTION
@@ -79,29 +79,29 @@ export const submitCode = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    const { data: student } = await supabase
+    const { data: student } = await supabaseAdmin
       .from("studentss")
       .select("id")
       .eq("auth_user_id", studentAuthId)
       .single();
 
-    const { data: practical } = await supabase
+    const { data: practical } = await supabaseAdmin
       .from("practicals")
       .select("id, subject_instance_id, pr_no")
       .eq("id", practical_id)
       .single();
 
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from("submissions")
       .select("id")
       .eq("student_id", student.id)
       .eq("practical_id", practical_id)
-      .single();
+      .maybeSingle();
 
     let submission;
 
     if (existing) {
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from("submissions")
         .update({
           code,
@@ -116,7 +116,7 @@ export const submitCode = async (req, res) => {
 
       submission = data;
     } else {
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from("submissions")
         .insert({
           student_id: student.id,
@@ -153,18 +153,18 @@ export const getStudentSubmission = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    const { data: student } = await supabase
+    const { data: student } = await supabaseAdmin
       .from("studentss")
       .select("id")
       .eq("auth_user_id", studentAuthId)
       .single();
 
-    const { data } = await supabase
+    const { data } = await supabaseAdmin
       .from("submissions")
       .select("*")
       .eq("student_id", student.id)
       .eq("practical_id", req.params.practicalId)
-      .single();
+      .maybeSingle();
 
     res.json({ submission: data || null });
   } catch {

@@ -4,7 +4,7 @@ import {
   getTeacherPracticalsBySubject,
   getStudentPracticalsBySubjectInstance,
   getPracticalDetail,
-  enablePractical,
+  togglePracticalUnlock,
 } from "../controllers/practical.controller.js";
 
 const router = Router();
@@ -12,7 +12,7 @@ const router = Router();
 // teacher
 router.post("/", addPractical);
 router.get("/teacher/:subjectInstanceId", getTeacherPracticalsBySubject);
-router.patch("/:practicalId/enable", enablePractical);
+router.patch("/:practicalId/unlock", togglePracticalUnlock);
 
 // student
 router.get(

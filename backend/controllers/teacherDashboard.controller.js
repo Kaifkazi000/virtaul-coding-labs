@@ -304,7 +304,7 @@ export const getSubjectInstancePracticals = async (req, res) => {
     // Get all practicals
     const { data: practicals, error: practicalsError } = await supabaseAdmin
       .from("practicals")
-      .select("id, pr_no, title, is_enabled")
+      .select("id, pr_no, title, is_unlocked")
       .eq("subject_instance_id", subjectInstanceId)
       .order("pr_no");
 

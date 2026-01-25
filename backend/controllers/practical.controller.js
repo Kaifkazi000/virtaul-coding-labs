@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 export const addPractical = async (req, res) => {
   try {
@@ -32,8 +32,8 @@ export const addPractical = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    // 🔎 Verify ownership
-    const { data: subjectInstance } = await supabase
+    // 🔎 Verify ownership using ADMIN client
+    const { data: subjectInstance } = await supabaseAdmin
       .from("subject_instances")
       .select("id, teacher_id")
       .eq("id", subject_instance_id)
@@ -48,7 +48,7 @@ export const addPractical = async (req, res) => {
     }
 
     // 🚫 Prevent duplicate PR
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from("practicals")
       .select("id")
       .eq("subject_instance_id", subject_instance_id)
@@ -60,7 +60,7 @@ export const addPractical = async (req, res) => {
     }
 
     // ✅ INSERT (SERVICE ROLE → NO RLS ISSUE)
-    const { data, error: insertError } = await supabase
+    const { data, error: insertError } = await supabaseAdmin
       .from("practicals")
       .insert([
         {
@@ -73,6 +73,7 @@ export const addPractical = async (req, res) => {
           theory,
           language,
           created_by: teacherId,
+          is_unlocked: false,
           is_enabled: pr_no === 1,
           enabled_at: pr_no === 1 ? new Date().toISOString() : null,
           enabled_by: pr_no === 1 ? teacherId : null,
@@ -119,7 +120,7 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
     const teacherId = userData.user.id;
 
     // Verify teacher owns this subject instance
-    const { data: subjectInstance, error: subjectError } = await supabase
+    const { data: subjectInstance, error: subjectError } = await supabaseAdmin
       .from("subject_instances")
       .select("id, teacher_id")
       .eq("id", subjectInstanceId)
@@ -133,7 +134,7 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
       return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("practicals")
       .select("*")
       .eq("subject_instance_id", subjectInstanceId)
@@ -159,13 +160,13 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
 };
 
 /**
- * TEACHER: Enable/Disable practical for all students (Batch Unlock)
- * PATCH /api/practicals/:practicalId/enable
+ * TEACHER: Unlock practical for all students
+ * PATCH /api/practicals/:practicalId/unlock
  */
-export const enablePractical = async (req, res) => {
+export const togglePracticalUnlock = async (req, res) => {
   try {
     const { practicalId } = req.params;
-    const { enabled } = req.body; // true or false
+    const { unlocked } = req.body; // true or false
 
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -182,7 +183,7 @@ export const enablePractical = async (req, res) => {
     const teacherId = userData.user.id;
 
     // Get practical and verify teacher owns the subject instance
-    const { data: practical, error: practicalError } = await supabase
+    const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
       .select("id, subject_instance_id")
       .eq("id", practicalId)
@@ -193,7 +194,7 @@ export const enablePractical = async (req, res) => {
     }
 
     // Verify teacher owns the subject instance
-    const { data: subjectInstance, error: instanceError } = await supabase
+    const { data: subjectInstance, error: instanceError } = await supabaseAdmin
       .from("subject_instances")
       .select("id, teacher_id")
       .eq("id", practical.subject_instance_id)
@@ -203,23 +204,16 @@ export const enablePractical = async (req, res) => {
       return res.status(404).json({ error: "Subject instance not found" });
     }
 
-    // Check if teacher owns this practical's subject instance
     if (subjectInstance.teacher_id !== teacherId) {
       return res.status(403).json({
         error: "You don't have permission to modify this practical",
       });
     }
 
-    // Update enable status
-    const updateData = {
-      is_enabled: enabled === true,
-      enabled_at: enabled === true ? new Date().toISOString() : null,
-      enabled_by: enabled === true ? teacherId : null,
-    };
-
-    const { data: updatedPractical, error: updateError } = await supabase
+    // Update unlock status
+    const { data: updatedPractical, error: updateError } = await supabaseAdmin
       .from("practicals")
-      .update(updateData)
+      .update({ is_unlocked: unlocked === true })
       .eq("id", practicalId)
       .select()
       .single();
@@ -229,7 +223,7 @@ export const enablePractical = async (req, res) => {
     }
 
     res.json({
-      message: `Practical ${enabled ? "enabled" : "disabled"} successfully`,
+      message: `Practical ${unlocked ? "unlocked" : "locked"} successfully`,
       practical: updatedPractical,
     });
   } catch (err) {
@@ -242,9 +236,9 @@ export const getStudentPracticalsBySubjectInstance = async (req, res) => {
   try {
     const { subjectInstanceId } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("practicals")
-      .select("id, pr_no, title, is_enabled")
+      .select("id, pr_no, title, is_unlocked")
       .eq("subject_instance_id", subjectInstanceId)
       .order("pr_no");
 
@@ -264,12 +258,13 @@ export const getPracticalDetail = async (req, res) => {
   try {
     const { practicalId } = req.params;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("practicals")
       .select(
-        "id, pr_no, title, description, task, sample_code, theory, language, is_enabled"
+        "id, pr_no, title, description, task, sample_code, theory, language, is_unlocked"
       )
       .eq("id", practicalId)
+      .eq("is_unlocked", true)
       .single();
 
     if (error) {

@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 import { executeCode } from "../services/codeExecutor.service.js";
 
 /**
@@ -30,8 +30,8 @@ export const executeAndSubmit = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    // Get student record
-    const { data: student, error: studentError } = await supabase
+    // Get student record using ADMIN client
+    const { data: student, error: studentError } = await supabaseAdmin
       .from("studentss")
       .select("id")
       .eq("auth_user_id", studentAuthId)
@@ -41,8 +41,8 @@ export const executeAndSubmit = async (req, res) => {
       return res.status(404).json({ error: "Student profile not found" });
     }
 
-    // Get practical details
-    const { data: practical, error: practicalError } = await supabase
+    // Get practical details using ADMIN client
+    const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
       .select("id, subject_instance_id, pr_no, language")
       .eq("id", practical_id)
@@ -65,17 +65,17 @@ export const executeAndSubmit = async (req, res) => {
     // Auto-submit if execution successful
     let submission = null;
     if (executionResult.execution_status === "success") {
-      // Check if submission already exists
-      const { data: existingSubmission } = await supabase
+      // Check if submission already exists using ADMIN client
+      const { data: existingSubmission } = await supabaseAdmin
         .from("submissions")
         .select("id")
         .eq("student_id", student.id)
         .eq("practical_id", practical_id)
-        .single();
+        .maybeSingle(); // Use maybeSingle to avoid error if missing
 
       if (existingSubmission) {
-        // Update existing submission
-        const { data: updatedSubmission, error: updateError } = await supabase
+        // Update existing submission using ADMIN client
+        const { data: updatedSubmission, error: updateError } = await supabaseAdmin
           .from("submissions")
           .update({
             code,
@@ -97,8 +97,8 @@ export const executeAndSubmit = async (req, res) => {
           submission = updatedSubmission;
         }
       } else {
-        // Create new submission
-        const { data: newSubmission, error: insertError } = await supabase
+        // Create new submission using ADMIN client
+        const { data: newSubmission, error: insertError } = await supabaseAdmin
           .from("submissions")
           .insert([
             {
@@ -164,8 +164,8 @@ export const checkUnlockStatus = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    // Get student record
-    const { data: student, error: studentError } = await supabase
+    // Get student record using ADMIN client
+    const { data: student, error: studentError } = await supabaseAdmin
       .from("studentss")
       .select("id")
       .eq("auth_user_id", studentAuthId)
@@ -175,10 +175,10 @@ export const checkUnlockStatus = async (req, res) => {
       return res.status(404).json({ error: "Student profile not found" });
     }
 
-    // Get practical
-    const { data: practical, error: practicalError } = await supabase
+    // Get practical using ADMIN client
+    const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
-      .select("id, pr_no, is_enabled, subject_instance_id")
+      .select("id, pr_no, is_unlocked")
       .eq("id", practicalId)
       .single();
 
@@ -186,57 +186,10 @@ export const checkUnlockStatus = async (req, res) => {
       return res.status(404).json({ error: "Practical not found" });
     }
 
-    // Check unlock status
-    let isUnlocked = false;
-    let unlockReason = "";
-
-    // PR-1 is always unlocked
-    if (practical.pr_no === 1) {
-      isUnlocked = true;
-      unlockReason = "First practical";
-    }
-    // If teacher enabled it, always unlocked
-    else if (practical.is_enabled) {
-      isUnlocked = true;
-      unlockReason = "Teacher enabled";
-    }
-    // Check if previous practical has successful submission
-    else {
-      const previousPrNo = practical.pr_no - 1;
-      
-      // Get previous practical
-      const { data: previousPractical } = await supabase
-        .from("practicals")
-        .select("id")
-        .eq("subject_instance_id", practical.subject_instance_id)
-        .eq("pr_no", previousPrNo)
-        .single();
-
-      if (previousPractical) {
-        // Check if student has successful submission for previous practical
-        const { data: previousSubmission } = await supabase
-          .from("submissions")
-          .select("execution_status")
-          .eq("student_id", student.id)
-          .eq("practical_id", previousPractical.id)
-          .single();
-
-        if (previousSubmission?.execution_status === "success") {
-          isUnlocked = true;
-          unlockReason = "Previous practical completed";
-        } else {
-          unlockReason = "Complete previous practical first";
-        }
-      } else {
-        unlockReason = "Previous practical not found";
-      }
-    }
-
     res.json({
-      is_unlocked: isUnlocked,
-      reason: unlockReason,
+      is_unlocked: !!practical.is_unlocked,
+      reason: practical.is_unlocked ? "Unlocked by teacher" : "Locked by teacher",
       pr_no: practical.pr_no,
-      is_enabled: practical.is_enabled,
     });
   } catch (err) {
     console.error("Unlock check error:", err);

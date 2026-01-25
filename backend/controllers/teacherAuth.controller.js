@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 export const teacherLogin = async (req, res) => {
   try {
@@ -19,8 +19,8 @@ export const teacherLogin = async (req, res) => {
       return res.status(401).json({ message: error.message });
     }
 
-    // 2️⃣ Check teacher exists in teachers table
-    const { data: teacher, error: teacherError } = await supabase
+    // 2️⃣ Check teacher exists in teachers table using ADMIN client
+    const { data: teacher, error: teacherError } = await supabaseAdmin
       .from("teachers")
       .select("name, email, department, role")
       .eq("auth_user_id", data.user.id)

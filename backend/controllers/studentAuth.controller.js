@@ -115,7 +115,7 @@ export const getCurrentStudent = async (req, res) => {
       return res.status(401).json({ message: "Invalid token" });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("studentss")
       .select("name, email, prn, roll, department, semester")
       .eq("auth_user_id", userData.user.id)

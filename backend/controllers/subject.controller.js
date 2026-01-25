@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { supabase, supabaseAdmin } from "../config/supabase.js";
 
 console.log("🔥 LOADED subject.controller.js 🔥");
 
@@ -37,7 +37,7 @@ export const addSubject = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("subjects")
       .insert({
         name,
@@ -91,7 +91,7 @@ export const getTeacherSubjects = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("subjects")
       .select("*")
       .eq("created_by", teacherId);
@@ -116,7 +116,7 @@ export const getTeacherSubjects = async (req, res) => {
  */
 export const getStudentSubjects = async (req, res) => {
   try {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("subjects")
       .select("id, name, code, description")
       .eq("is_active", true);
@@ -163,7 +163,7 @@ export const getSubjectById = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("subjects")
       .select("*")
       .eq("id", id)
