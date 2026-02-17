@@ -206,7 +206,7 @@ export default function HodDashboard() {
                                                                            return;
                                                             }
 
-                                                            const response = await fetch("http://localhost:5000/api/hod/bulk-register-students", {
+                                                            const response = await fetch("/api/hod/bulk-register-students", {
                                                                            method: "POST",
                                                                            headers: { "Content-Type": "application/json" },
                                                                            body: JSON.stringify({ students: parsedStudents })
