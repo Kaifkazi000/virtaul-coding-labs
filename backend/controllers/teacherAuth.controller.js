@@ -33,7 +33,7 @@ export const teacherLogin = async (req, res) => {
     }
 
     res.json({
-      message: "Teacher login successful",
+      message: `${teacher.role === 'hod' ? 'HOD' : 'Teacher'} login successful`,
       teacher,
       session: data.session,
     });

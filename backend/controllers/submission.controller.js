@@ -1,4 +1,5 @@
 import { supabase, supabaseAdmin } from "../config/supabase.js";
+import { checkIntegrity, analyzeLogic } from "../services/logicEngine/index.js";
 
 /**
  * MOCK CODE EXECUTION
@@ -76,21 +77,46 @@ export const submitCode = async (req, res) => {
 
     const token = req.headers.authorization?.replace("Bearer ", "");
     const { data: userData } = await supabase.auth.getUser(token);
-
     const studentAuthId = userData.user.id;
 
+    // 1. Get Student and Practical/Subject details
     const { data: student } = await supabaseAdmin
-      .from("studentss")
-      .select("id")
+      .from("students")
+      .select("id, semester")
       .eq("auth_user_id", studentAuthId)
       .single();
 
     const { data: practical } = await supabaseAdmin
       .from("practicals")
-      .select("id, subject_instance_id, pr_no")
+      .select("id, subject_instance_id, pr_no, sample_code")
       .eq("id", practical_id)
       .single();
 
+    // 2. Fetch existing submissions for comparison (same scope)
+    const { data: existingSubmissions } = await supabaseAdmin
+      .from("submissions")
+      .select("id, code, language")
+      .eq("subject_instance_id", practical.subject_instance_id)
+      .eq("pr_no", practical.pr_no)
+      .neq("student_id", student.id); // Exclude current student
+
+    console.log(`[AI Logic] Found ${existingSubmissions?.length || 0} other submissions to compare against for PR-${practical.pr_no}`);
+
+    // 3. Run AI Logic Integrity Check
+    const integrityResult = checkIntegrity(
+      code,
+      language,
+      existingSubmissions || [],
+      practical.sample_code
+    );
+
+    console.log(`[AI Logic] Result for PR-${practical.pr_no}:`, {
+      score: integrityResult.similarityScore,
+      flagged: integrityResult.flagged,
+      tokens: integrityResult.logicHash?.length || 0
+    });
+
+    // 4. Save or Update Submission
     const { data: existing } = await supabaseAdmin
       .from("submissions")
       .select("id")
@@ -98,50 +124,56 @@ export const submitCode = async (req, res) => {
       .eq("practical_id", practical_id)
       .maybeSingle();
 
-    let submission;
+    const submissionData = {
+      student_id: student.id,
+      subject_instance_id: practical.subject_instance_id,
+      practical_id,
+      pr_no: practical.pr_no,
+      semester: student.semester,
+      code,
+      language,
+      execution_status,
+      execution_output: output,
+      logic_hash: integrityResult.logicHash,
+      similarity_score: integrityResult.similarityScore,
+      flagged: integrityResult.flagged,
+      matching_submission_id: integrityResult.matchingSubmissionId,
+      updated_at: new Date().toISOString(),
+    };
+
+    let resultSubmission;
 
     if (existing) {
       const { data } = await supabaseAdmin
         .from("submissions")
-        .update({
-          code,
-          language,
-          execution_status,
-          execution_output: output,
-          updated_at: new Date().toISOString(),
-        })
+        .update(submissionData)
         .eq("id", existing.id)
         .select()
         .single();
-
-      submission = data;
+      resultSubmission = data;
     } else {
       const { data } = await supabaseAdmin
         .from("submissions")
         .insert({
-          student_id: student.id,
-          subject_instance_id: practical.subject_instance_id,
-          practical_id,
-          pr_no: practical.pr_no,
-          code,
-          language,
-          execution_status,
-          execution_output: output,
+          ...submissionData,
+          created_at: new Date().toISOString(),
         })
         .select()
         .single();
-
-      submission = data;
+      resultSubmission = data;
     }
 
     res.status(201).json({
       message: "Submission saved successfully",
-      submission,
+      submission: resultSubmission,
+      integrity: integrityResult,
     });
   } catch (err) {
+    console.error("Submission error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
+
 
 /**
  * GET STUDENT SUBMISSION
@@ -154,7 +186,7 @@ export const getStudentSubmission = async (req, res) => {
     const studentAuthId = userData.user.id;
 
     const { data: student } = await supabaseAdmin
-      .from("studentss")
+      .from("students")
       .select("id")
       .eq("auth_user_id", studentAuthId)
       .single();

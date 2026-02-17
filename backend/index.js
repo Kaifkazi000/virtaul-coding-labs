@@ -12,6 +12,7 @@ import practicalRoutes from "./routes/practical.route.js";
 import submissionRoutes from "./routes/submission.route.js";
 import executionRoutes from "./routes/execution.route.js";
 import teacherDashboardRoutes from "./routes/teacherDashboard.route.js";
+import hodRoutes from "./routes/hod.route.js";
 import pdfRoutes from "./routes/pdf.route.js";
 import testRoutes from "./routes/test.routes.js";
 
@@ -31,7 +32,7 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps or curl requests)
       if (!origin) return callback(null, true);
-      
+
       if (allowedOrigins.indexOf(origin) !== -1) {
         callback(null, true);
       } else {
@@ -60,6 +61,7 @@ app.use("/api/practicals", practicalRoutes);
 app.use("/api/submissions", submissionRoutes);
 app.use("/api/execution", executionRoutes);
 app.use("/api/teacher-dashboard", teacherDashboardRoutes);
+app.use("/api/hod", hodRoutes);
 app.use("/api/pdf", pdfRoutes);
 app.use("/api", testRoutes);
 

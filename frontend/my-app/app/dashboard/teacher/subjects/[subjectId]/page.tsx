@@ -16,7 +16,8 @@ import {
   Users,
   FileText,
   BarChart3,
-  Eye
+  Eye,
+  ShieldAlert
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -152,7 +153,7 @@ export default function TeacherSubjectDetailPage() {
     try {
       const token = localStorage.getItem("teacher_token");
 
-      const res = await fetch(`/api/teacher-dashboard/practical/${practicalId}/students`, {
+      const res = await fetch(`/api/teacher-dashboard/practical/${practicalId}/students?allotmentId=${subjectInstanceId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -160,7 +161,7 @@ export default function TeacherSubjectDetailPage() {
       });
 
       const data = await res.json();
-      console.log(`[DEBUG] fetchPracticalStudents result for ${practicalId}:`, data);
+      console.log(`[DEBUG] fetchPracticalStudents result:`, data);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to fetch students");
@@ -191,6 +192,7 @@ export default function TeacherSubjectDetailPage() {
         },
         body: JSON.stringify({
           unlocked: !currentUnlocked,
+          allotmentId: subjectInstanceId
         }),
       });
 
@@ -202,7 +204,7 @@ export default function TeacherSubjectDetailPage() {
 
       await fetchPracticals();
 
-      setSuccess(`Practical ${!currentUnlocked ? "unlocked" : "locked"} successfully`);
+      setSuccess(`Practical ${!currentUnlocked ? "unlocked" : "locked"} for this batch successfully`);
       setTimeout(() => setSuccess(""), 3000);
     } catch (err: any) {
       setError(err.message);
@@ -516,6 +518,11 @@ export default function TeacherSubjectDetailPage() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-3">
+                                {pr.flagged_count > 0 && (
+                                  <span className="flex items-center gap-1 bg-red-500 text-white px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-500/20 animate-pulse">
+                                    <ShieldAlert className="w-3 h-3" /> {pr.flagged_count} Alert{pr.flagged_count > 1 ? 's' : ''}
+                                  </span>
+                                )}
                                 <span
                                   className={`px-4 py-1.5 rounded-full text-xs font-semibold ${pr.is_unlocked
                                     ? "bg-green-100 text-green-700"

@@ -98,11 +98,11 @@ export const addPractical = async (req, res) => {
 };
 
 /**
- * TEACHER: Get own practicals for a subject instance
+ * TEACHER: Get own practicals for an allotment (Batch)
  */
 export const getTeacherPracticalsBySubject = async (req, res) => {
                try {
-                              const { subjectInstanceId } = req.params;
+                              const { subjectInstanceId } = req.params; // This is the allotmentId
 
                               const authHeader = req.headers.authorization;
                               if (!authHeader) {
@@ -118,43 +118,51 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
 
                               const teacherId = userData.user.id;
 
-                              // Verify teacher owns this subject instance
-                              const { data: subjectInstance, error: subjectError } = await supabaseAdmin
-                                             .from("subject_instances")
-                                             .select("id, teacher_id")
+                              // 1. Verify allotment ownership
+                              const { data: allotment, error: allotError } = await supabaseAdmin
+                                             .from("subject_allotments")
+                                             .select("id, teacher_id, master_subject_id")
                                              .eq("id", subjectInstanceId)
                                              .single();
 
-                              if (subjectError || !subjectInstance) {
-                                             return res.status(404).json({ error: "Subject instance not found" });
+                              if (allotError || !allotment) {
+                                             return res.status(404).json({ error: "Allotment not found" });
                               }
 
-                              if (subjectInstance.teacher_id !== teacherId) {
-                                             return res.status(403).json({ error: "Unauthorized: Not your subject instance" });
+                              if (allotment.teacher_id !== teacherId) {
+                                             return res.status(403).json({ error: "Unauthorized access" });
                               }
 
-                              const { data, error } = await supabaseAdmin
-                                             .from("practicals")
+                              // 2. Get master practicals
+                              const { data: masterPracticals, error: prError } = await supabaseAdmin
+                                             .from("master_practicals")
                                              .select("*")
-                                             .eq("subject_instance_id", subjectInstanceId)
+                                             .eq("master_subject_id", allotment.master_subject_id)
                                              .order("pr_no");
 
-                              if (error) {
-                                             console.error(`❌ Failed to fetch practicals for subject ${subjectInstanceId}:`, error);
-                                             return res.status(400).json({ error: error.message });
-                              }
+                              if (prError) throw prError;
 
-                              console.log(`✅ Fetched ${data?.length || 0} practicals for subject_instance ${subjectInstanceId}`);
+                              // 3. Get unlock status for this allotment
+                              const { data: statuses, error: statusError } = await supabaseAdmin
+                                             .from("allotment_practical_status")
+                                             .select("*")
+                                             .eq("allotment_id", subjectInstanceId);
 
-                              // Prevent caching
-                              res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-                              res.setHeader("Pragma", "no-cache");
-                              res.setHeader("Expires", "0");
+                              if (statusError) throw statusError;
 
-                              res.json(data || []);
+                              const statusMap = new Map();
+                              statuses?.forEach(s => statusMap.set(s.master_practical_id, s.is_unlocked));
+
+                              // 4. Merge
+                              const mergedData = (masterPracticals || []).map(mp => ({
+                                             ...mp,
+                                             is_unlocked: statusMap.get(mp.id) || false
+                              }));
+
+                              res.json(mergedData);
                } catch (err) {
-                              console.error(err);
-                              res.status(500).json({ error: "Server error" });
+                              console.error("Fetch Practicals Error:", err);
+                              res.status(500).json({ error: err.message });
                }
 };
 
@@ -233,20 +241,46 @@ export const togglePracticalUnlock = async (req, res) => {
 
 export const getStudentPracticalsBySubjectInstance = async (req, res) => {
                try {
-                              const { subjectInstanceId } = req.params;
+                              const { subjectInstanceId } = req.params; // Allotment ID
 
-                              const { data, error } = await supabaseAdmin
-                                             .from("practicals")
-                                             .select("id, pr_no, title, is_unlocked")
-                                             .eq("subject_instance_id", subjectInstanceId)
-                                             .order("pr_no");
+                              const authHeader = req.headers.authorization;
+                              if (!authHeader) return res.status(401).json({ error: "Authorization token missing" });
 
-                              if (error) return res.status(400).json({ error: error.message });
+                              const token = authHeader.replace("Bearer ", "");
+                              const { data: userData, error: authError } = await supabase.auth.getUser(token);
+                              if (authError || !userData.user) return res.status(401).json({ error: "Invalid token" });
 
-                              res.json(data);
+                              const studentId = userData.user.id;
+
+                              const { data: student } = await supabaseAdmin.from("studentss").select("id, semester, batch_name").eq("id", studentId).single();
+                              if (!student) return res.status(404).json({ error: "Student not found" });
+
+                              const { data: allotment } = await supabaseAdmin.from("subject_allotments").select("*, master_subjects(*)").eq("id", subjectInstanceId).single();
+                              if (!allotment) return res.status(404).json({ error: "No matching enrollment found" });
+
+                              const { data: masterPracticals } = await supabaseAdmin.from("master_practicals").select("*").eq("master_subject_id", allotment.master_subject_id).order("pr_no");
+
+                              const [unlockStatuses, submissions] = await Promise.all([
+                                             supabaseAdmin.from("allotment_practical_status").select("*").eq("allotment_id", allotment.id),
+                                             supabaseAdmin.from("submissions").select("*").eq("student_id", studentId)
+                              ]);
+
+                              const unlockMap = new Map();
+                              unlockStatuses.data?.forEach(s => unlockMap.set(s.master_practical_id, s.is_unlocked));
+
+                              const submissionMap = new Map();
+                              submissions.data?.forEach(s => submissionMap.set(s.practical_id, s));
+
+                              const merged = (masterPracticals || []).map(mp => ({
+                                             ...mp,
+                                             is_unlocked: unlockMap.get(mp.id) || false,
+                                             submission: submissionMap.get(mp.id) || null
+                              }));
+
+                              res.json(merged);
                } catch (err) {
-                              console.error(err);
-                              res.status(500).json({ error: "Server error" });
+                              console.error("Student Fetch Error:", err);
+                              res.status(500).json({ error: err.message });
                }
 };
 
@@ -258,12 +292,9 @@ export const getPracticalDetail = async (req, res) => {
                               const { practicalId } = req.params;
 
                               const { data, error } = await supabaseAdmin
-                                             .from("practicals")
-                                             .select(
-                                                            "id, pr_no, title, description, task, sample_code, theory, language, is_unlocked"
-                                             )
+                                             .from("master_practicals")
+                                             .select("*")
                                              .eq("id", practicalId)
-                                             .eq("is_unlocked", true)
                                              .single();
 
                               if (error) {

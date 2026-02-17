@@ -2,10 +2,10 @@ import { supabase, supabaseAdmin } from "../config/supabase.js";
 import { executeCode } from "../services/codeExecutor.service.js";
 
 /**
- * STUDENT: Execute code and auto-submit if successful
+ * STUDENT: Execute code only
  * POST /api/execution/execute
  */
-export const executeAndSubmit = async (req, res) => {
+export const executeCodeOnly = async (req, res) => {
   try {
     const { code, language, practical_id } = req.body;
 
@@ -41,10 +41,10 @@ export const executeAndSubmit = async (req, res) => {
       return res.status(404).json({ error: "Student profile not found" });
     }
 
-    // Get practical details using ADMIN client
+    // Get practical details (for language verification)
     const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
-      .select("id, subject_instance_id, pr_no, language")
+      .select("id, language")
       .eq("id", practical_id)
       .single();
 
@@ -62,79 +62,13 @@ export const executeAndSubmit = async (req, res) => {
     // Execute code
     const executionResult = await executeCode(code, language);
 
-    // Auto-submit if execution successful
-    let submission = null;
-    if (executionResult.execution_status === "success") {
-      // Check if submission already exists using ADMIN client
-      const { data: existingSubmission } = await supabaseAdmin
-        .from("submissions")
-        .select("id")
-        .eq("student_id", student.id)
-        .eq("practical_id", practical_id)
-        .maybeSingle(); // Use maybeSingle to avoid error if missing
-
-      if (existingSubmission) {
-        // Update existing submission using ADMIN client
-        const { data: updatedSubmission, error: updateError } = await supabaseAdmin
-          .from("submissions")
-          .update({
-            code,
-            language,
-            execution_status: executionResult.execution_status,
-            execution_output: executionResult.output,
-            execution_error: executionResult.error || null,
-            execution_time_ms: executionResult.execution_time_ms,
-            memory_used_kb: executionResult.memory_used_kb,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existingSubmission.id)
-          .select()
-          .single();
-
-        if (updateError) {
-          console.error("Error updating submission:", updateError);
-        } else {
-          submission = updatedSubmission;
-        }
-      } else {
-        // Create new submission using ADMIN client
-        const { data: newSubmission, error: insertError } = await supabaseAdmin
-          .from("submissions")
-          .insert([
-            {
-              student_id: student.id,
-              subject_instance_id: practical.subject_instance_id,
-              practical_id: practical_id,
-              pr_no: practical.pr_no,
-              code,
-              language,
-              execution_status: executionResult.execution_status,
-              execution_output: executionResult.output,
-              execution_error: executionResult.error || null,
-              execution_time_ms: executionResult.execution_time_ms,
-              memory_used_kb: executionResult.memory_used_kb,
-            },
-          ])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error("Error creating submission:", insertError);
-        } else {
-          submission = newSubmission;
-        }
-      }
-    }
-
-    // Return execution result with submission info
+    // Return ONLY execution result
     res.json({
       execution_status: executionResult.execution_status,
       output: executionResult.output,
       error: executionResult.error,
       execution_time_ms: executionResult.execution_time_ms,
       memory_used_kb: executionResult.memory_used_kb,
-      submitted: submission !== null,
-      submission_id: submission?.id || null,
     });
   } catch (err) {
     console.error("Execution error:", err);

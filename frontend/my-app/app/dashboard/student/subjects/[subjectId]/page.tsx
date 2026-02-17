@@ -45,8 +45,8 @@ export default function StudentSubjectPracticalsPage() {
           return;
         }
 
-        // Fetch practicals
-        const practicalsRes = await fetch(
+        // 1. Fetch consolidated practicals (contains unlock & submission status)
+        const res = await fetch(
           `/api/practicals/student/${subjectInstanceId}`,
           {
             headers: {
@@ -55,51 +55,26 @@ export default function StudentSubjectPracticalsPage() {
           }
         );
 
-        const practicalsData = await practicalsRes.json();
+        const data = await res.json();
 
-        if (!practicalsRes.ok) {
-          throw new Error(practicalsData.error || "Failed to fetch practicals");
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to fetch practicals");
         }
 
-        // Sort by pr_no
-        const sorted = practicalsData.sort(
-          (a: any, b: any) => a.pr_no - b.pr_no
-        );
+        // Data is now an array of practicals with .is_unlocked and .submission
+        const sorted = data.sort((a: any, b: any) => a.pr_no - b.pr_no);
         setPracticals(sorted);
 
-        const [submissionResults, unlockResults] = await Promise.all([
-          Promise.all(
-            sorted.map(async (pr: any) => {
-              const subRes = await fetch(
-                `/api/submissions/student/${pr.id}`,
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                }
-              );
-              const subData = await subRes.json();
-              return { practicalId: pr.id, submission: subData.submission || null };
-            })
-          ),
-          Promise.all(
-            sorted.map(async (pr: any) => {
-              const uRes = await fetch(
-                `/api/execution/unlock-status/${pr.id}`,
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                }
-              );
-              const uData = await uRes.json();
-              return { practicalId: pr.id, isUnlocked: !!uData.is_unlocked };
-            })
-          ),
-        ]);
-
+        // Update maps for backward compatibility with UI components
         const newSubs: Record<string, any> = {};
-        submissionResults.forEach((r) => (newSubs[r.practicalId] = r.submission));
-        setSubmissions(newSubs);
-
         const newUnlock: Record<string, boolean> = {};
-        unlockResults.forEach((r) => (newUnlock[r.practicalId] = r.isUnlocked));
+
+        sorted.forEach((pr: any) => {
+          newSubs[pr.id] = pr.submission;
+          newUnlock[pr.id] = pr.is_unlocked;
+        });
+
+        setSubmissions(newSubs);
         setUnlockMap(newUnlock);
       } catch (err: any) {
         setError(err.message);

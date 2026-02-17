@@ -65,16 +65,37 @@ export const getTeacherSubjectInstances = async (req, res) => {
     const teacherId = userData.user.id;
 
     const { data, fetchError } = await supabaseAdmin
-      .from("subject_instances")
-      .select("*")
+      .from("subject_allotments")
+      .select(`
+        id,
+        semester,
+        batch_name,
+        academic_year,
+        master_subjects (
+          id,
+          name,
+          course_code
+        )
+      `)
       .eq("teacher_id", teacherId)
+      .eq("is_active", true)
       .order("created_at", { ascending: false });
 
     if (fetchError)
       return res.status(400).json({ error: fetchError.message });
 
-    res.json(data);
-  } catch {
+    // Map to a format compatible with existing frontend
+    const formattedData = (data || []).map(allot => ({
+      id: allot.id,
+      subject_name: allot.master_subjects.name,
+      subject_code: allot.master_subjects.course_code,
+      semester: allot.semester,
+      batch_name: allot.batch_name,
+      academic_year: allot.academic_year
+    }));
+
+    res.json(formattedData);
+  } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -96,32 +117,52 @@ export const getStudentSubjectInstances = async (req, res) => {
 
     const studentAuthId = userData.user.id;
 
-    // get student semester using admin client to ensure we see the profile
+    // 1. Get student profile with batch and semester
     const { data: student, error: studentError } = await supabaseAdmin
       .from("studentss")
-      .select("semester")
+      .select("semester, batch_name")
       .eq("auth_user_id", studentAuthId)
       .single();
 
-    if (studentError)
-      return res.status(400).json({ error: "Student profile not found" });
+    if (studentError || !student)
+      return res.status(404).json({ error: "Student profile not found" });
 
-    // Fetch subject instances matching student's semester
-    const { data, fetchError } = await supabaseAdmin
-      .from("subject_instances")
-      .select("*")
+    // 2. Fetch allotted subjects matching student's batch and semester
+    const { data: allotments, error: fetchError } = await supabaseAdmin
+      .from("subject_allotments")
+      .select(`
+        id,
+        master_subject_id,
+        batch_name,
+        semester,
+        academic_year,
+        master_subjects (
+          id,
+          name,
+          course_code
+        )
+      `)
       .eq("semester", student.semester)
-      .or(`is_active.eq.true,is_active.is.null`);
+      .eq("batch_name", student.batch_name)
+      .eq("is_active", true);
 
     if (fetchError) {
-      console.error("Error fetching subject instances:", fetchError);
+      console.error("Error fetching subject allotments:", fetchError);
       return res.status(400).json({ error: fetchError.message });
     }
 
-    console.log(`Found ${data?.length || 0} subject instances for semester ${student.semester}`);
+    // Map to a format compatible with existing frontend (using subject_instance style)
+    const formattedData = (allotments || []).map(allot => ({
+      id: allot.id, // Using allotment ID as instance ID
+      subject_name: allot.master_subjects.name,
+      subject_code: allot.master_subjects.course_code,
+      semester: allot.semester,
+      master_subject_id: allot.master_subject_id,
+      batch_name: allot.batch_name
+    }));
 
-    res.json(data || []);
-  } catch {
+    res.json(formattedData);
+  } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 };

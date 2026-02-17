@@ -1,13 +1,13 @@
 import { Router } from "express";
 import {
-  executeAndSubmit,
+  executeCodeOnly,
   checkUnlockStatus,
 } from "../controllers/execution.controller.js";
 
 const router = Router();
 
 // Student routes
-router.post("/execute", executeAndSubmit);
+router.post("/execute", executeCodeOnly);
 router.get("/unlock-status/:practicalId", checkUnlockStatus);
 
 export default router;

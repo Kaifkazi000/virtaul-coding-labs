@@ -6,7 +6,8 @@ import { supabase, supabaseAdmin } from "../config/supabase.js";
  */
 export const getPracticalStudents = async (req, res) => {
   try {
-    const { practicalId } = req.params;
+    const { practicalId } = req.params; // Master Practical ID
+    const { allotmentId } = req.query;  // Allotment ID (passed from teacher frontend)
 
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -22,87 +23,63 @@ export const getPracticalStudents = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    // Verify teacher owns the practical's subject instance
-    const { data: practical, error: practicalError } = await supabaseAdmin
-      .from("practicals")
-      .select(
-        `
-        id,
-        pr_no,
-        title,
-        subject_instance_id,
-        subject_instances!inner (
-          id,
-          teacher_id,
-          subject_name,
-          semester
-        )
-      `
-      )
+    // 1. Get allotment and master practical to verify ownership
+    const { data: allotment, error: allotError } = await supabaseAdmin
+      .from("subject_allotments")
+      .select("*, master_subjects(*)")
+      .eq("id", allotmentId)
+      .single();
+
+    if (allotError || !allotment) {
+      return res.status(404).json({ error: "Allotment not found" });
+    }
+
+    if (allotment.teacher_id !== teacherId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    const { data: practical, error: prError } = await supabaseAdmin
+      .from("master_practicals")
+      .select("*")
       .eq("id", practicalId)
       .single();
 
-    if (practicalError || !practical) {
-      return res.status(404).json({ error: "Practical not found" });
+    if (prError || !practical) {
+      return res.status(404).json({ error: "Master Practical not found" });
     }
 
-    if (practical.subject_instances.teacher_id !== teacherId) {
-      return res.status(403).json({
-        error: "You don't have access to this practical",
-      });
-    }
-
-    // Get all students enrolled in this subject instance (by semester)
-    const rawSemester = practical.subject_instances?.semester ?? practical.subject_instances?.[0]?.semester;
-    const semester = Math.abs(rawSemester || 1);
-
-    console.log(`[DEBUG] Practical: ${practical.title}, Raw Semester: ${rawSemester}, Final Semester: ${semester}`);
-
-    // 🚀 FIXED: use supabaseAdmin for the student query to bypass user session limits
+    // 2. Get all students in this specific batch and semester
     const { data: allStudents, error: studentsError } = await supabaseAdmin
       .from("studentss")
       .select("id, name, prn, roll, email")
-      .eq("semester", semester);
+      .eq("semester", allotment.semester)
+      .eq("batch_name", allotment.batch_name);
 
-    if (studentsError) {
-      return res.status(400).json({ error: studentsError.message });
-    }
+    if (studentsError) throw studentsError;
 
-    // Get all submissions for this practical
+    // 3. Get all submissions for this practical FROM THIS BATCH
     const { data: submissions, error: submissionsError } = await supabaseAdmin
       .from("submissions")
-      .select(
-        `
+      .select(`
         id,
         student_id,
         code,
         execution_status,
-        execution_output,
-        execution_error,
-        execution_time_ms,
         submitted_at,
-        studentss!inner (
-          id,
-          name,
-          prn,
-          roll,
-          email
-        )
-      `
-      )
-      .eq("practical_id", practicalId);
+        similarity_score,
+        flagged
+      `)
+      .eq("practical_id", practicalId)
+      // Joined check for batch/sem of student
+      .in("student_id", (allStudents || []).map(s => s.id));
 
-    if (submissionsError) {
-      return res.status(400).json({ error: submissionsError.message });
-    }
+    if (submissionsError) throw submissionsError;
 
-    // Create a map of student_id -> submission
     const submissionMap = new Map();
     submissions.forEach((sub) => {
       submissionMap.set(sub.student_id, sub);
     });
 
-    // Separate into submitted and not-submitted
     const submitted = [];
     const not_submitted = [];
 
@@ -110,57 +87,28 @@ export const getPracticalStudents = async (req, res) => {
       const submission = submissionMap.get(student.id);
       if (submission) {
         submitted.push({
-          student_id: student.id,
-          name: student.name,
-          prn: student.prn,
-          roll: student.roll,
-          email: student.email,
-          execution_status: submission.execution_status,
-          execution_time_ms: submission.execution_time_ms,
-          submitted_at: submission.submitted_at,
-          submission_id: submission.id,
+          ...student,
+          ...submission,
+          submission_id: submission.id
         });
       } else {
-        not_submitted.push({
-          student_id: student.id,
-          name: student.name,
-          prn: student.prn,
-          roll: student.roll,
-          email: student.email,
-        });
+        not_submitted.push(student);
       }
     });
 
-    const responseData = {
-      practical: {
-        id: practical.id,
-        pr_no: practical.pr_no,
-        title: practical.title,
-        subject_name: (practical.subject_instances?.subject_name) || (practical.subject_instances?.[0]?.subject_name),
-        semester: semester,
-      },
-      submitted: submitted.sort((a, b) => a.name.localeCompare(b.name)),
-      not_submitted: not_submitted.sort((a, b) => a.name.localeCompare(b.name)),
+    res.json({
+      practical,
+      allotment,
+      submitted: submitted.sort((a, b) => a.roll?.localeCompare(b.roll)),
+      not_submitted: not_submitted.sort((a, b) => a.roll?.localeCompare(b.roll)),
       stats: {
-        total_students: allStudents.length,
-        submitted_count: submitted.length,
-        not_submitted_count: not_submitted.length,
-        submission_rate: allStudents.length > 0
-          ? ((submitted.length / allStudents.length) * 100).toFixed(2)
-          : 0,
-      },
-    };
-
-    console.log(`[DEBUG] getPracticalStudents success for PR-${practical.pr_no}. Total Students: ${allStudents.length}`);
-
-    // Prevent caching
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-
-    res.json(responseData);
+        total: allStudents.length,
+        submitted: submitted.length,
+        not_submitted: not_submitted.length
+      }
+    });
   } catch (err) {
-    console.error("Error fetching practical students:", err);
+    console.error("Stats Error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -187,77 +135,43 @@ export const getStudentSubmissionDetail = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    // Get submission with all related data using ADMIN client
-    const { data: submission, error: submissionError } = await supabaseAdmin
+    // 1. Get submission with student and practical context
+    const { data: submission, error: subError } = await supabaseAdmin
       .from("submissions")
-      .select(
-        `
+      .select(`
         *,
-        studentss!inner (
-          id,
-          name,
-          prn,
-          roll,
-          email,
-          semester
-        ),
-        practicals!inner (
-          id,
-          pr_no,
-          title,
-          language,
-          subject_instance_id,
-          subject_instances!inner (
-            id,
-            teacher_id
-          )
-        )
-      `
-      )
+        studentss:student_id (*),
+        master_practicals:practical_id (*)
+      `)
       .eq("id", submissionId)
       .single();
 
-    if (submissionError || !submission) {
+    if (subError || !submission) {
       return res.status(404).json({ error: "Submission not found" });
     }
 
-    // Verify teacher owns this submission's subject instance
-    if (submission.practicals.subject_instances.teacher_id !== teacherId) {
-      return res.status(403).json({
-        error: "You don't have access to this submission",
-      });
+    // 2. Verify teacher owns an allotment for this subject and the student's batch
+    const { data: allotment, error: allotError } = await supabaseAdmin
+      .from("subject_allotments")
+      .select("*")
+      .eq("teacher_id", teacherId)
+      .eq("master_subject_id", submission.master_practicals.master_subject_id)
+      .eq("batch_name", submission.studentss.batch_name)
+      .eq("semester", submission.studentss.semester)
+      .single();
+
+    if (allotError || !allotment) {
+      return res.status(403).json({ error: "You don't have access to this student's submission" });
     }
 
     res.json({
-      submission: {
-        id: submission.id,
-        code: submission.code,
-        language: submission.language,
-        execution_status: submission.execution_status,
-        execution_output: submission.execution_output,
-        execution_error: submission.execution_error,
-        execution_time_ms: submission.execution_time_ms,
-        memory_used_kb: submission.memory_used_kb,
-        submitted_at: submission.submitted_at,
-        updated_at: submission.updated_at,
-      },
-      student: {
-        id: submission.studentss.id,
-        name: submission.studentss.name,
-        prn: submission.studentss.prn,
-        roll: submission.studentss.roll,
-        email: submission.studentss.email,
-        semester: submission.studentss.semester,
-      },
-      practical: {
-        id: submission.practicals.id,
-        pr_no: submission.practicals.pr_no,
-        title: submission.practicals.title,
-        language: submission.practicals.language,
-      },
+      submission,
+      student: submission.studentss,
+      practical: submission.master_practicals,
+      allotment
     });
   } catch (err) {
-    console.error("Error fetching submission detail:", err);
+    console.error("Submission Detail Error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -268,7 +182,7 @@ export const getStudentSubmissionDetail = async (req, res) => {
  */
 export const getSubjectInstancePracticals = async (req, res) => {
   try {
-    const { subjectInstanceId } = req.params;
+    const { subjectInstanceId } = req.params; // This is now the allotmentId from subject_allotments
 
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -284,75 +198,94 @@ export const getSubjectInstancePracticals = async (req, res) => {
 
     const teacherId = userData.user.id;
 
-    // Verify teacher owns this subject instance
-    const { data: subjectInstance, error: instanceError } = await supabaseAdmin
-      .from("subject_instances")
-      .select("id, subject_name, semester, teacher_id")
+    // 1. Verify allotment ownership
+    const { data: allotment, error: allotError } = await supabaseAdmin
+      .from("subject_allotments")
+      .select(`
+        id,
+        semester,
+        batch_name,
+        teacher_id,
+        master_subject_id,
+        master_subjects (
+          id,
+          name,
+          course_code
+        )
+      `)
       .eq("id", subjectInstanceId)
       .single();
 
-    if (instanceError || !subjectInstance) {
-      return res.status(404).json({ error: "Subject instance not found" });
+    if (allotError || !allotment) {
+      return res.status(404).json({ error: "Subject allotment not found" });
     }
 
-    if (subjectInstance.teacher_id !== teacherId) {
-      return res.status(403).json({
-        error: "You don't have access to this subject instance",
-      });
+    if (allotment.teacher_id !== teacherId) {
+      return res.status(403).json({ error: "Unauthorized access" });
     }
 
-    // Get all practicals
-    const { data: practicals, error: practicalsError } = await supabaseAdmin
-      .from("practicals")
-      .select("id, pr_no, title, is_unlocked")
-      .eq("subject_instance_id", subjectInstanceId)
+    // 2. Get master practicals for this subject
+    const { data: masterPracticals, error: prError } = await supabaseAdmin
+      .from("master_practicals")
+      .select("*")
+      .eq("master_subject_id", allotment.master_subject_id)
       .order("pr_no");
 
-    if (practicalsError) {
-      return res.status(400).json({ error: practicalsError.message });
-    }
+    if (prError) throw prError;
 
-    // Get total students in this semester
-    const semesterForStats = Math.abs(subjectInstance.semester || 1);
+    // 3. Get total students in this batch + semester
     const { count: totalStudents } = await supabaseAdmin
       .from("studentss")
       .select("*", { count: "exact", head: true })
-      .eq("semester", semesterForStats);
+      .eq("semester", allotment.semester)
+      .eq("batch_name", allotment.batch_name);
 
-    console.log(`[DEBUG] getSubjectInstancePracticals success for instance ${subjectInstanceId}. Semester: ${semesterForStats}, Total Students: ${totalStudents}`);
-
-    // Get submission counts for each practical
+    // 4. Get submission stats for these practicals in this batch
+    // We join submissions with students to filter by batch
     const practicalsWithStats = await Promise.all(
-      practicals.map(async (practical) => {
+      (masterPracticals || []).map(async (mp) => {
         const { count: submittedCount } = await supabaseAdmin
           .from("submissions")
-          .select("*", { count: "exact", head: true })
-          .eq("practical_id", practical.id)
-          .eq("execution_status", "success");
+          .select("id, student_id, studentss!inner(*)", { count: "exact", head: true })
+          .eq("practical_id", mp.id)
+          .eq("studentss.semester", allotment.semester)
+          .eq("studentss.batch_name", allotment.batch_name);
+
+        const { count: flaggedCount } = await supabaseAdmin
+          .from("submissions")
+          .select("id, student_id, studentss!inner(*)", { count: "exact", head: true })
+          .eq("practical_id", mp.id)
+          .eq("flagged", true)
+          .eq("studentss.semester", allotment.semester)
+          .eq("studentss.batch_name", allotment.batch_name);
 
         return {
-          ...practical,
+          id: mp.id,
+          pr_no: mp.pr_no,
+          title: mp.title,
+          is_unlocked: true, // For now, handle unlocking separately if needed
           total_students: totalStudents || 0,
           submitted_count: submittedCount || 0,
           not_submitted_count: (totalStudents || 0) - (submittedCount || 0),
-          submission_rate:
-            totalStudents > 0
-              ? ((submittedCount / totalStudents) * 100).toFixed(2)
-              : "0.00",
+          flagged_count: flaggedCount || 0,
+          submission_rate: totalStudents > 0
+            ? ((submittedCount / totalStudents) * 100).toFixed(2)
+            : "0.00"
         };
       })
     );
 
     res.json({
       subject_instance: {
-        id: subjectInstance.id,
-        subject_name: subjectInstance.subject_name,
-        semester: subjectInstance.semester,
+        id: allotment.id,
+        subject_name: allotment.master_subjects.name,
+        semester: allotment.semester,
+        batch_name: allotment.batch_name
       },
-      practicals: practicalsWithStats,
+      practicals: practicalsWithStats
     });
   } catch (err) {
-    console.error("Error fetching practicals with stats:", err);
+    console.error("Dashboard error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
