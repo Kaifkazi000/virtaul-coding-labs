@@ -12,8 +12,11 @@ import {
   Hash,
   Building2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Settings,
+  Lock
 } from "lucide-react";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -22,6 +25,7 @@ export default function StudentDashboard() {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [loadingSubjects, setLoadingSubjects] = useState(true);
   const [error, setError] = useState("");
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
 
   // 🔐 Check auth + load student data
   useEffect(() => {
@@ -81,7 +85,16 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen bg-white">
-      <StudentNavbar studentName={student.name} />
+      <StudentNavbar
+        studentName={student.name}
+        onSettingsClick={() => setShowPasswordModal(true)}
+      />
+
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        userType="student"
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {/* Welcome Header */}
@@ -117,7 +130,24 @@ export default function StudentDashboard() {
               </div>
 
               <div className="mt-8 pt-8 border-t border-gray-200">
-                <div className="bg-black text-white p-6 rounded-2xl relative overflow-hidden">
+                <div
+                  onClick={() => setShowPasswordModal(true)}
+                  className="bg-slate-900 text-white p-6 rounded-2xl relative overflow-hidden cursor-pointer hover:bg-slate-800 transition-all group"
+                >
+                  <div className="relative z-10 text-xs font-bold opacity-60 uppercase tracking-widest">
+                    Account Security
+                  </div>
+                  <div className="relative z-10 text-xl font-black mt-1 flex items-center gap-2">
+                    Update Password <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                  <div className="absolute top-[-20px] right-[-20px] opacity-10">
+                    <Lock className="w-24 h-24" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <div className="bg-emerald-50 text-emerald-700 p-6 rounded-2xl relative overflow-hidden border border-emerald-100">
                   <div className="relative z-10 text-sm font-bold opacity-80 uppercase tracking-widest">
                     Status
                   </div>

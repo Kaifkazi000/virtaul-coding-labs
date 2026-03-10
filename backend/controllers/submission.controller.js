@@ -87,8 +87,8 @@ export const submitCode = async (req, res) => {
       .single();
 
     const { data: practical } = await supabaseAdmin
-      .from("practicals")
-      .select("id, subject_instance_id, pr_no, sample_code")
+      .from("master_practicals")
+      .select("id, subject_instance_id, practical_no, template_code")
       .eq("id", practical_id)
       .single();
 
@@ -97,20 +97,20 @@ export const submitCode = async (req, res) => {
       .from("submissions")
       .select("id, code, language")
       .eq("subject_instance_id", practical.subject_instance_id)
-      .eq("pr_no", practical.pr_no)
+      .eq("practical_no", practical.practical_no)
       .neq("student_id", student.id); // Exclude current student
 
-    console.log(`[AI Logic] Found ${existingSubmissions?.length || 0} other submissions to compare against for PR-${practical.pr_no}`);
+    console.log(`[AI Logic] Found ${existingSubmissions?.length || 0} other submissions to compare against for PR-${practical.practical_no}`);
 
     // 3. Run AI Logic Integrity Check
     const integrityResult = checkIntegrity(
       code,
       language,
       existingSubmissions || [],
-      practical.sample_code
+      practical.template_code
     );
 
-    console.log(`[AI Logic] Result for PR-${practical.pr_no}:`, {
+    console.log(`[AI Logic] Result for PR-${practical.practical_no}:`, {
       score: integrityResult.similarityScore,
       flagged: integrityResult.flagged,
       tokens: integrityResult.logicHash?.length || 0
@@ -128,7 +128,7 @@ export const submitCode = async (req, res) => {
       student_id: student.id,
       subject_instance_id: practical.subject_instance_id,
       practical_id,
-      pr_no: practical.pr_no,
+      practical_no: practical.practical_no,
       semester: student.semester,
       code,
       language,

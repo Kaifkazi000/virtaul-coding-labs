@@ -8,10 +8,11 @@ import {
                BookOpen,
                Users,
                UserPlus,
-               ArrowUpCircle
+               ArrowUpCircle,
+               Settings
 } from "lucide-react";
 
-export default function HodNavbar({ hodName }: { hodName: string }) {
+export default function HodNavbar({ hodName, onSettingsClick }: { hodName: string; onSettingsClick: () => void }) {
                const router = useRouter();
 
                const handleLogout = () => {
@@ -45,8 +46,16 @@ export default function HodNavbar({ hodName }: { hodName: string }) {
                                                                            <span className="text-sm font-black text-black leading-tight">{hodName || "HOD Admin"}</span>
                                                             </div>
                                                             <button
+                                                                           onClick={onSettingsClick}
+                                                                           className="p-3 hover:bg-indigo-50 rounded-2xl text-gray-400 hover:text-indigo-600 transition-all active:scale-95 group border border-transparent hover:border-indigo-100"
+                                                                           title="Change Password"
+                                                            >
+                                                                           <Settings className="w-5 h-5" />
+                                                            </button>
+                                                            <button
                                                                            onClick={handleLogout}
                                                                            className="p-3 hover:bg-rose-50 rounded-2xl text-gray-400 hover:text-rose-600 transition-all active:scale-95 group border border-transparent hover:border-rose-100"
+                                                                           title="Logout"
                                                             >
                                                                            <LogOut className="w-5 h-5" />
                                                             </button>

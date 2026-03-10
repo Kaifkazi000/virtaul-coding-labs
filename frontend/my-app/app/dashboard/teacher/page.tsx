@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   BookOpen,
-  Plus,
   Users,
   FileText,
   LogOut,
@@ -13,8 +12,13 @@ import {
   Loader2,
   LayoutDashboard,
   Sparkles,
-  TrendingUp
+  TrendingUp,
+  Settings,
+  Lock,
+  AlertCircle,
+  ArrowRight
 } from "lucide-react";
+import ChangePasswordModal from "@/components/ChangePasswordModal";
 
 export default function TeacherDashboard() {
   const router = useRouter();
@@ -23,9 +27,19 @@ export default function TeacherDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mounted, setMounted] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [teacherData, setTeacherData] = useState<any>(null);
 
   useEffect(() => {
     setMounted(true);
+    const data = localStorage.getItem("teacher_data");
+    if (data) {
+      try {
+        setTeacherData(JSON.parse(data));
+      } catch (e) {
+        console.error("Failed to parse teacher data", e);
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -59,6 +73,8 @@ export default function TeacherDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("teacher_token");
+    localStorage.removeItem("teacher_logged_in");
+    localStorage.removeItem("teacher_data");
     router.push("/");
   };
 
@@ -69,9 +85,12 @@ export default function TeacherDashboard() {
       if (!mounted) return;
       let start = 0;
       const end = value;
-      if (start === end) return;
+      if (start === end) {
+        setCount(end);
+        return;
+      }
 
-      const incrementTime = Math.max(duration / end, 50);
+      const incrementTime = Math.max(duration / (end || 1), 50);
       const timer = setInterval(() => {
         start += 1;
         setCount(start);
@@ -86,14 +105,18 @@ export default function TeacherDashboard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4 animate-fade-in">
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-6 animate-fade-in text-center">
           <div className="relative">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center shadow-xl shadow-orange-200">
+            <div className="w-24 h-24 rounded-[2rem] bg-slate-900 flex items-center justify-center shadow-2xl shadow-indigo-200 ring-8 ring-indigo-50">
               <Loader2 className="h-10 w-10 animate-spin text-white" />
             </div>
+            <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-indigo-500 rounded-full border-4 border-white animate-pulse" />
           </div>
-          <p className="text-orange-700 font-semibold text-lg">Loading your dashboard...</p>
+          <div className="space-y-2">
+            <h3 className="text-xl font-black text-slate-800 tracking-tight">Accessing Portal</h3>
+            <p className="text-slate-400 font-medium text-sm">Validating credentials and syncing your workspace...</p>
+          </div>
         </div>
       </div>
     );
@@ -101,208 +124,208 @@ export default function TeacherDashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50 flex items-center justify-center p-4">
-        <div className="bg-white/80 backdrop-blur-xl border border-rose-200 rounded-3xl p-10 max-w-md text-center shadow-2xl animate-fade-in">
-          <div className="w-16 h-16 bg-gradient-to-br from-rose-400 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-rose-200">
-            <FileText className="h-8 w-8 text-white" />
+      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4">
+        <div className="bg-white border border-rose-100 rounded-[2.5rem] p-12 max-w-md text-center shadow-2xl shadow-rose-100/50 animate-fade-in">
+          <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center mx-auto mb-8 ring-8 ring-rose-50/50">
+            <AlertCircle className="h-10 w-10 text-rose-500" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Oops! Something went wrong</h2>
-          <p className="text-gray-600 mb-8">{error}</p>
+          <h2 className="text-2xl font-black text-slate-800 mb-4 tracking-tight">Session Conflict</h2>
+          <p className="text-slate-500 mb-10 leading-relaxed font-medium">{error}</p>
           <button
             onClick={() => router.push("/")}
-            className="text-orange-600 hover:text-orange-700 font-semibold transition-colors underline underline-offset-4"
+            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold hover:bg-slate-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]"
           >
-            Return to Home
+            Return to Gateway
           </button>
         </div>
       </div>
     );
   }
 
+  const uniqueBatches = Array.from(new Set(subjects.map(s => s.batch_name))).filter(Boolean);
+  const uniqueSems = Array.from(new Set(subjects.map(s => s.semester)));
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-orange-50 to-rose-50">
+    <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-orange-100 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 bg-gradient-to-br from-orange-400 to-rose-500 rounded-xl flex items-center justify-center shadow-lg shadow-orange-200">
+      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-100">
+        <div className="max-w-screen-2xl mx-auto px-6 sm:px-10">
+          <div className="flex items-center justify-between h-20">
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100 ring-4 ring-indigo-50">
                 <GraduationCap className="h-6 w-6 text-white" />
               </div>
               <div className="hidden sm:block">
-                <h1 className="text-lg font-bold text-gray-800 tracking-tight">Virtual Coding Lab</h1>
-                <p className="text-xs text-orange-600 font-medium">Teacher Portal</p>
-              </div>
-              <div className="sm:hidden">
-                <h1 className="text-base font-bold text-gray-800">CodeLab</h1>
+                <h1 className="text-xl font-black text-slate-900 tracking-tighter leading-none">CodePortal</h1>
+                <p className="text-[10px] text-indigo-600 font-black uppercase tracking-[0.2em] mt-1">Institutional Lab Management</p>
               </div>
             </div>
 
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all duration-200"
-            >
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex flex-col items-end mr-4">
+                <p className="text-sm font-black text-slate-900">
+                  {teacherData?.name ? (teacherData.name.toLowerCase().includes('sir') || teacherData.name.toLowerCase().includes('prof') ? teacherData.name : `Prof. ${teacherData.name}`) : "Faculty"}
+                </p>
+                <p className="text-[10px] font-bold text-slate-400">Department Faculty</p>
+              </div>
+
+              <button
+                onClick={() => setShowPasswordModal(true)}
+                className="p-3 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-2xl transition-all duration-200 border border-transparent hover:border-indigo-100"
+                title="Security Settings"
+              >
+                <Lock className="h-5 w-5" />
+              </button>
+
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 text-rose-600 rounded-2xl text-sm font-bold hover:bg-rose-100 transition-all border border-rose-100"
+              >
+                <LogOut className="h-4 w-4" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
+      <ChangePasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        userType="teacher"
+      />
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+      <main className="flex-grow max-w-screen-2xl mx-auto px-6 sm:px-10 py-10 sm:py-12 w-full">
         {/* Welcome Section */}
-        <div className="mb-10 animate-fade-in">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-400 to-rose-500 flex items-center justify-center shadow-lg shadow-orange-200">
-              <LayoutDashboard className="h-7 w-7 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-3xl sm:text-4xl font-bold text-gray-800 academic-heading">
-                  Welcome back!
-                </h2>
-                <Sparkles className="h-6 w-6 text-amber-500" />
+        <div className="mb-12 animate-fade-in">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-black uppercase tracking-widest border border-indigo-100/50">
+                <Sparkles className="h-3.5 w-3.5 italic" />
+                Faculty Portal
               </div>
-              <p className="text-gray-600 text-base sm:text-lg mt-1">
-                Manage your subjects, practicals, and track student progress
+              <h2 className="text-4xl sm:text-5xl font-black text-slate-900 tracking-tighter leading-none">
+                Salutations, <span className="text-indigo-600">{teacherData?.name ? (teacherData.name.split(' ')[0]) : "Professor"}</span>!
+              </h2>
+              <p className="text-slate-500 text-lg font-medium max-w-2xl">
+                Ready to mentor? Your technical workspace is synchronized with the latest HOD allotments.
               </p>
+            </div>
+
+            <div className="flex items-center gap-3 p-2 bg-white rounded-[2rem] border border-slate-100 shadow-sm">
+              <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center">
+                <TrendingUp className="w-6 h-6" />
+              </div>
+              <div className="pr-6">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Status</p>
+                <p className="text-sm font-bold text-slate-900 mt-1">Teaching Load Balanced</p>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6 mb-10 animate-fade-in" style={{ animationDelay: '100ms' }}>
-          {/* Total Subjects */}
-          <div className="group relative overflow-hidden bg-white/60 backdrop-blur-xl border border-orange-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-orange-100 transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-orange-200 group-hover:scale-110 transition-transform duration-300">
-                <BookOpen className="h-7 w-7 text-white" />
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12 animate-fade-in" style={{ animationDelay: '100ms' }}>
+          <StatCard
+            icon={<BookOpen className="h-6 w-6" />}
+            label="Total Subjects"
+            value={subjects.length}
+            color="bg-indigo-500"
+          />
+          <StatCard
+            icon={<Users className="h-6 w-6" />}
+            label="Active Batches"
+            value={uniqueBatches.length}
+            color="bg-emerald-500"
+          />
+          <StatCard
+            icon={<FileText className="h-6 w-6" />}
+            label="Curriculum Years"
+            value={uniqueSems.length}
+            color="bg-amber-500"
+          />
+          <div
+            onClick={() => setShowPasswordModal(true)}
+            className="group bg-slate-900 rounded-[2rem] p-8 flex flex-col justify-between hover:shadow-2xl hover:shadow-slate-200 transition-all duration-300 cursor-pointer border border-slate-800"
+          >
+            <div className="flex items-center justify-between">
+              <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-white ring-1 ring-white/20">
+                <Lock className="h-6 w-6" />
               </div>
-              <div>
-                <p className="text-4xl font-bold text-gray-800">
-                  <AnimatedCounter value={subjects.length} />
-                </p>
-                <p className="text-sm text-gray-500 font-medium">Total Subjects</p>
-              </div>
+              <ChevronRight className="w-5 h-5 text-slate-500 group-hover:text-white group-hover:translate-x-1 transition-all" />
             </div>
-          </div>
-
-          {/* Total Practicals */}
-          <div className="group relative overflow-hidden bg-white/60 backdrop-blur-xl border border-rose-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-rose-100 transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-rose-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-rose-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200 group-hover:scale-110 transition-transform duration-300">
-                <FileText className="h-7 w-7 text-white" />
-              </div>
-              <div>
-                <p className="text-4xl font-bold text-gray-800">—</p>
-                <p className="text-sm text-gray-500 font-medium">Total Practicals</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Enrolled Students */}
-          <div className="group relative overflow-hidden bg-white/60 backdrop-blur-xl border border-violet-100 rounded-3xl p-6 hover:shadow-xl hover:shadow-violet-100 transition-all duration-300 hover:-translate-y-1">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-violet-200/30 to-transparent rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="relative flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-br from-violet-400 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-violet-200 group-hover:scale-110 transition-transform duration-300">
-                <Users className="h-7 w-7 text-white" />
-              </div>
-              <div>
-                <p className="text-4xl font-bold text-gray-800">—</p>
-                <p className="text-sm text-gray-500 font-medium">Enrolled Students</p>
-              </div>
+            <div className="mt-8">
+              <p className="text-white font-black text-xl tracking-tight">Security Center</p>
+              <p className="text-slate-400 text-xs font-bold mt-1">Manage your credentials</p>
             </div>
           </div>
         </div>
 
         {/* Subjects Section */}
-        <div className="bg-white/60 backdrop-blur-xl border border-orange-100 rounded-3xl overflow-hidden shadow-sm animate-fade-in" style={{ animationDelay: '200ms' }}>
+        <div className="bg-white rounded-[3rem] border border-slate-100 overflow-hidden shadow-sm animate-fade-in" style={{ animationDelay: '200ms' }}>
           {/* Section Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 bg-gradient-to-r from-orange-50/50 to-rose-50/50 border-b border-orange-100">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-8 sm:p-10 border-b border-slate-50">
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-2xl font-bold text-gray-800 academic-heading">Your Subjects</h3>
-                <TrendingUp className="h-5 w-5 text-orange-500" />
-              </div>
-              <p className="text-gray-500 mt-1">
-                Create and manage subject instances for your classes
+              <h3 className="text-3xl font-black text-slate-900 tracking-tight italic">Teaching Portfolio</h3>
+              <p className="text-slate-400 font-bold text-sm mt-1 uppercase tracking-widest">
+                Allotted Subjects & Practical Laboratories
               </p>
             </div>
-            <button
-              onClick={() => router.push("/dashboard/teacher/add-subject")}
-              className="inline-flex items-center justify-center gap-2 bg-gradient-to-r from-orange-500 to-rose-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-orange-600 hover:to-rose-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-orange-200 hover:shadow-xl hover:shadow-orange-300"
-            >
-              <Plus className="h-5 w-5" />
-              Add Subject
-            </button>
+
+            <div className="px-5 py-2.5 bg-slate-50 text-slate-500 rounded-2xl text-xs font-black uppercase tracking-widest">
+              Academic Session 2024-25
+            </div>
           </div>
 
           {/* Subjects List */}
-          <div className="divide-y divide-orange-100">
+          <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             {subjects.length === 0 ? (
-              <div className="p-12 sm:p-20 text-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-orange-100 to-rose-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                  <BookOpen className="h-12 w-12 text-orange-400" />
+              <div className="col-span-full py-24 text-center">
+                <div className="w-32 h-32 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-8 ring-8 ring-slate-50/50">
+                  <BookOpen className="h-14 w-14 text-slate-200" />
                 </div>
-                <h4 className="text-2xl font-bold text-gray-800 mb-3 academic-heading">No Subjects Yet</h4>
-                <p className="text-gray-500 mb-10 max-w-sm mx-auto">
-                  Start your teaching journey by creating your first subject instance
+                <h4 className="text-2xl font-black text-slate-800 mb-2 tracking-tight">Assignment Pending</h4>
+                <p className="text-slate-400 max-w-sm mx-auto font-medium">
+                  The Head of Department has not yet allotted any subjects to your portfolio. Please check back later.
                 </p>
-                <button
-                  onClick={() => router.push("/dashboard/teacher/add-subject")}
-                  className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-rose-500 text-white px-8 py-4 rounded-xl font-semibold hover:from-orange-600 hover:to-rose-600 active:scale-[0.98] transition-all duration-200 shadow-lg shadow-orange-200 hover:shadow-xl"
-                >
-                  <Plus className="h-5 w-5" />
-                  Create First Subject
-                </button>
               </div>
             ) : (
               subjects.map((subj, index) => (
                 <div
                   key={subj.id}
-                  className="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-8 hover:bg-gradient-to-r hover:from-orange-50/50 hover:to-rose-50/50 transition-all duration-200"
-                  style={{
-                    animationDelay: `${300 + index * 50}ms`,
-                    animation: mounted ? 'fade-in 0.3s ease-out forwards' : 'none',
-                    opacity: mounted ? 1 : 0
-                  }}
+                  className="group bg-white border border-slate-100 p-6 sm:p-8 rounded-[2.5rem] hover:border-indigo-100 hover:shadow-2xl hover:shadow-indigo-50/50 transition-all duration-300"
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-rose-500 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-orange-200 group-hover:scale-105 transition-transform duration-200">
-                      <BookOpen className="h-7 w-7 text-white" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-gray-800 text-xl group-hover:text-orange-600 transition-colors">
-                        {subj.subject_name}
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
-                          Semester {subj.semester}
-                        </span>
-                        {subj.batch && (
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-violet-100 text-violet-700">
-                            {subj.batch}
+                  <div className="flex items-start justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform">
+                        <BookOpen className="h-8 w-8 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-2xl font-black text-slate-900 tracking-tighter leading-none group-hover:text-indigo-600 transition-colors">
+                          {subj.subject_name}
+                        </h4>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2 py-0.5 border border-slate-100 rounded-md">
+                            SEM {subj.semester}
                           </span>
-                        )}
+                          {subj.batch_name && (
+                            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest px-2 py-0.5 bg-indigo-50 rounded-md">
+                              Batch {subj.batch_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 ml-18 sm:ml-0">
+
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={() => router.push(`/dashboard/teacher/subjects/${subj.id}`)}
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500 to-rose-500 text-white px-5 py-2.5 rounded-xl text-sm font-semibold hover:from-orange-600 hover:to-rose-600 active:scale-[0.98] transition-all duration-200 shadow-md shadow-orange-200"
+                      className="flex-grow flex items-center justify-center gap-3 bg-slate-900 text-white px-8 py-4 rounded-2xl text-sm font-black hover:bg-indigo-600 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]"
                     >
-                      <FileText className="h-4 w-4" />
-                      Practicals
-                    </button>
-                    <button
-                      onClick={() => router.push(`/dashboard/teacher/subjects/${subj.id}`)}
-                      className="inline-flex items-center justify-center w-11 h-11 bg-white border border-orange-200 rounded-xl text-gray-400 hover:text-orange-600 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200"
-                    >
-                      <ChevronRight className="h-5 w-5" />
+                      Enter Laboratory
+                      <ArrowRight className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -313,21 +336,48 @@ export default function TeacherDashboard() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-orange-100 mt-auto py-10 bg-white/40 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-rose-500 rounded-lg flex items-center justify-center">
-              <GraduationCap className="h-4 w-4 text-white" />
+      <footer className="border-t border-slate-100 pt-16 pb-12 bg-white">
+        <div className="max-w-screen-2xl mx-auto px-6 sm:px-10">
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-slate-900 rounded-xl flex items-center justify-center">
+                  <GraduationCap className="h-5 w-5 text-white" />
+                </div>
+                <p className="text-lg font-black text-slate-900 tracking-tighter">CodePortal v3.0</p>
+              </div>
+              <p className="text-sm font-bold text-slate-500 tracking-tight leading-relaxed max-w-sm">
+                Propelling academic excellence through digital laboratory environments at Govt. College of Engineering, Chandrapur.
+              </p>
             </div>
-            <p className="text-sm font-semibold text-gray-700">
-              Government College of Engineering, Chandrapur
+            <div className="flex flex-col md:items-end gap-2 text-[10px] font-black italic text-slate-400 uppercase tracking-[0.3em]">
+              <span>Dept. of Computer Science & Engineering</span>
+              <span>Established Excellence</span>
+            </div>
+          </div>
+          <div className="mt-16 pt-8 border-t border-slate-50 text-center">
+            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">
+              © {new Date().getFullYear()} GCOEC. All rights reserved.
             </p>
           </div>
-          <p className="text-xs text-gray-500">
-            Department of Computer Science & Engineering
-          </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+function StatCard({ icon, label, value, color }: { icon: any, label: string, value: number, color: string }) {
+  return (
+    <div className="group bg-white rounded-[2rem] p-8 border border-slate-100 hover:border-white hover:shadow-2xl hover:shadow-slate-200 transition-all duration-300">
+      <div className={`w-12 h-12 ${color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-8 group-hover:scale-110 transition-transform`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-2">{label}</p>
+        <p className="text-4xl font-black text-slate-900 tracking-tighter">
+          {value < 10 && value > 0 ? `0${value}` : value === 0 ? '--' : value}
+        </p>
+      </div>
     </div>
   );
 }

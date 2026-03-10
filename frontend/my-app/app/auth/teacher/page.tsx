@@ -38,7 +38,7 @@ export default function TeacherLoginPage() {
 
       localStorage.setItem("teacher_token", data.session.access_token);
       localStorage.setItem("teacher_logged_in", "true");
-      localStorage.setItem("teacher_data", JSON.stringify(data.user || {}));
+      localStorage.setItem("teacher_data", JSON.stringify(data.teacher || {}));
 
       router.push("/dashboard/teacher");
     } catch (err: any) {

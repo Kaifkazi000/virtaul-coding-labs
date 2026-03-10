@@ -13,14 +13,14 @@ export const generatePracticalReport = async (
     try {
       // Get practical details
       const { data: practical, error: practicalError } = await supabase
-        .from("practicals")
+        .from("master_practicals")
         .select(
           `
           *,
-          subject_instances!inner (
+          subject_instances:subject_id!master_subjects (
             id,
-            subject_name,
-            subject_code,
+            name,
+            course_code,
             semester,
             teacher_id
           )
@@ -48,14 +48,14 @@ export const generatePracticalReport = async (
       // Get all students and submissions
       const semester = practical.subject_instances.semester;
       const { data: allStudents } = await supabase
-        .from("studentss")
-        .select("id, name, prn, roll, email")
+        .from("students")
+        .select("id, full_name, prn, roll_no, email")
         .eq("semester", semester)
         .order("name");
 
       const { data: submissions } = await supabase
         .from("submissions")
-        .select("*")
+        .select("*, subjects:subject_id!master_subjects(*)")
         .eq("practical_id", practicalId);
 
       const submissionMap = new Map();
@@ -86,8 +86,8 @@ export const generatePracticalReport = async (
       // Subject Info
       doc.fontSize(14).text("Subject Information", { underline: true });
       doc.fontSize(11);
-      doc.text(`Subject: ${practical.subject_instances.subject_name}`);
-      doc.text(`Code: ${practical.subject_instances.subject_code}`);
+      doc.text(`Subject: ${practical.subject_instances.name}`);
+      doc.text(`Code: ${practical.subject_instances.course_code}`);
       doc.text(`Semester: ${practical.subject_instances.semester}`);
       doc.text(`Teacher: ${teacherName}`);
       doc.moveDown();
@@ -133,7 +133,7 @@ export const generatePracticalReport = async (
         doc.fontSize(10);
         submitted.forEach((item, index) => {
           doc.text(
-            `${index + 1}. ${item.name} (PRN: ${item.prn}, Roll: ${item.roll})`,
+            `${index + 1}. ${item.full_name} (PRN: ${item.prn}, Roll: ${item.roll})`,
             { indent: 20 }
           );
           doc.text(
@@ -160,7 +160,7 @@ export const generatePracticalReport = async (
         doc.fontSize(10);
         notSubmitted.forEach((student, index) => {
           doc.text(
-            `${index + 1}. ${student.name} (PRN: ${student.prn}, Roll: ${student.roll})`,
+            `${index + 1}. ${student.full_name} (PRN: ${student.prn}, Roll: ${student.roll})`,
             { indent: 20 }
           );
           doc.moveDown(0.3);
@@ -195,8 +195,8 @@ export const generateSubjectInstanceReport = async (
     try {
       // Get subject instance details
       const { data: subjectInstance, error: instanceError } = await supabase
-        .from("subject_instances")
-        .select("*")
+        .from("allotments")
+        .select("*, subjects:subject_id!master_subjects(*)")
         .eq("id", subjectInstanceId)
         .single();
 
@@ -218,14 +218,14 @@ export const generateSubjectInstanceReport = async (
 
       // Get all practicals
       const { data: practicals } = await supabase
-        .from("practicals")
+        .from("master_practicals")
         .select("id, pr_no, title")
-        .eq("subject_instance_id", subjectInstanceId)
+        .eq("master_subject_id", subjectInstance.subject_id)
         .order("pr_no");
 
       // Get all students
       const { data: allStudents } = await supabase
-        .from("studentss")
+        .from("students")
         .select("id, name, prn, roll")
         .eq("semester", subjectInstance.semester)
         .order("name");
@@ -233,8 +233,8 @@ export const generateSubjectInstanceReport = async (
       // Get all submissions
       const { data: allSubmissions } = await supabase
         .from("submissions")
-        .select("*")
-        .eq("subject_instance_id", subjectInstanceId);
+        .select("*, subjects:subject_id!master_subjects(*)")
+        .eq("master_subject_id", subjectInstance.subject_id);
 
       // Create PDF
       const doc = new PDFDocument({ margin: 50 });
@@ -258,8 +258,8 @@ export const generateSubjectInstanceReport = async (
       // Subject Info
       doc.fontSize(14).text("Subject Information", { underline: true });
       doc.fontSize(11);
-      doc.text(`Subject: ${subjectInstance.subject_name}`);
-      doc.text(`Code: ${subjectInstance.subject_code}`);
+      doc.text(`Subject: ${subjectInstance.subjects.name}`);
+      doc.text(`Code: ${subjectInstance.subjects.course_code}`);
       doc.text(`Semester: ${subjectInstance.semester}`);
       doc.text(`Teacher: ${teacherName}`);
       doc.moveDown(2);

@@ -70,17 +70,17 @@ function StudentAuthClient() {
 
       const body = isSignup
         ? {
-            name: formData.name,
-            email: formData.email,
-            password: formData.password,
-            prn: formData.prn,
-            roll: formData.roll,
-            semester: formData.semester,
-          }
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          prn: formData.prn,
+          roll: formData.roll,
+          semester: formData.semester,
+        }
         : {
-            email: formData.email,
-            password: formData.password,
-          };
+          email: formData.email,
+          password: formData.password,
+        };
 
       const res = await fetch(url, {
         method: "POST",
@@ -176,14 +176,14 @@ function StudentAuthClient() {
                   value={formData.semester} onChange={handleChange}
                   className="w-full px-4 py-3 border rounded">
                   <option value="">Select Semester</option>
-                  {[1,2,3,4,5,6,7,8].map(s => (
+                  {[1, 2, 3, 4, 5, 6, 7, 8].map(s => (
                     <option key={s} value={s}>Semester {s}</option>
                   ))}
                 </select>
               </>
             )}
 
-            <input type="email" name="email" placeholder="Email" required
+            <input type="text" name="email" placeholder="Email or PRN" required
               value={formData.email} onChange={handleChange}
               className="w-full px-4 py-3 border rounded" />
 

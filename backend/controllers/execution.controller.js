@@ -32,7 +32,7 @@ export const executeCodeOnly = async (req, res) => {
 
     // Get student record using ADMIN client
     const { data: student, error: studentError } = await supabaseAdmin
-      .from("studentss")
+      .from("students")
       .select("id")
       .eq("auth_user_id", studentAuthId)
       .single();
@@ -100,7 +100,7 @@ export const checkUnlockStatus = async (req, res) => {
 
     // Get student record using ADMIN client
     const { data: student, error: studentError } = await supabaseAdmin
-      .from("studentss")
+      .from("students")
       .select("id")
       .eq("auth_user_id", studentAuthId)
       .single();
@@ -112,7 +112,7 @@ export const checkUnlockStatus = async (req, res) => {
     // Get practical using ADMIN client
     const { data: practical, error: practicalError } = await supabaseAdmin
       .from("practicals")
-      .select("id, pr_no, is_unlocked")
+      .select("id, practical_no, is_unlocked")
       .eq("id", practicalId)
       .single();
 
@@ -123,7 +123,7 @@ export const checkUnlockStatus = async (req, res) => {
     res.json({
       is_unlocked: !!practical.is_unlocked,
       reason: practical.is_unlocked ? "Unlocked by teacher" : "Locked by teacher",
-      pr_no: practical.pr_no,
+      pr_no: practical.practical_no,
     });
   } catch (err) {
     console.error("Unlock check error:", err);

@@ -1,0 +1,9 @@
+--- TABLE SCAN START ---
+[PRESENT] students        : OK
+[ABSENT]  studentss       : Could not find the table 'public.studentss' in the schema cache
+[PRESENT] teachers        : OK
+[ABSENT]  subjects        : Could not find the table 'public.subjects' in the schema cache
+[PRESENT] allotments      : OK
+[ABSENT]  practicals      : Could not find the table 'public.practicals' in the schema cache
+[PRESENT] master_practicals : OK
+--- TABLE SCAN END ---

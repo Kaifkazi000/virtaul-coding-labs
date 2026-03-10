@@ -25,8 +25,8 @@ export const getPracticalStudents = async (req, res) => {
 
     // 1. Get allotment and master practical to verify ownership
     const { data: allotment, error: allotError } = await supabaseAdmin
-      .from("subject_allotments")
-      .select("*, master_subjects(*)")
+      .from("allotments")
+      .select("*, subjects:subject_id!master_subjects(*)")
       .eq("id", allotmentId)
       .single();
 
@@ -50,8 +50,8 @@ export const getPracticalStudents = async (req, res) => {
 
     // 2. Get all students in this specific batch and semester
     const { data: allStudents, error: studentsError } = await supabaseAdmin
-      .from("studentss")
-      .select("id, name, prn, roll, email")
+      .from("students")
+      .select("id, full_name, prn, roll_no, email")
       .eq("semester", allotment.semester)
       .eq("batch_name", allotment.batch_name);
 
@@ -99,8 +99,8 @@ export const getPracticalStudents = async (req, res) => {
     res.json({
       practical,
       allotment,
-      submitted: submitted.sort((a, b) => a.roll?.localeCompare(b.roll)),
-      not_submitted: not_submitted.sort((a, b) => a.roll?.localeCompare(b.roll)),
+      submitted: submitted.sort((a, b) => (a.roll_no || 0) - (b.roll_no || 0)),
+      not_submitted: not_submitted.sort((a, b) => (a.roll_no || 0) - (b.roll_no || 0)),
       stats: {
         total: allStudents.length,
         submitted: submitted.length,
@@ -140,8 +140,8 @@ export const getStudentSubmissionDetail = async (req, res) => {
       .from("submissions")
       .select(`
         *,
-        studentss:student_id (*),
-        master_practicals:practical_id (*)
+        students:student_id (*),
+        practicals:practical_id!master_practicals (*)
       `)
       .eq("id", submissionId)
       .single();
@@ -152,12 +152,12 @@ export const getStudentSubmissionDetail = async (req, res) => {
 
     // 2. Verify teacher owns an allotment for this subject and the student's batch
     const { data: allotment, error: allotError } = await supabaseAdmin
-      .from("subject_allotments")
+      .from("allotments")
       .select("*")
       .eq("teacher_id", teacherId)
-      .eq("master_subject_id", submission.master_practicals.master_subject_id)
-      .eq("batch_name", submission.studentss.batch_name)
-      .eq("semester", submission.studentss.semester)
+      .eq("subject_id", submission.practicals.subject_id)
+      .eq("batch_name", submission.students.batch_name)
+      .eq("semester", submission.students.semester)
       .single();
 
     if (allotError || !allotment) {
@@ -166,8 +166,8 @@ export const getStudentSubmissionDetail = async (req, res) => {
 
     res.json({
       submission,
-      student: submission.studentss,
-      practical: submission.master_practicals,
+      student: submission.students,
+      practical: submission.practicals,
       allotment
     });
   } catch (err) {
@@ -200,14 +200,14 @@ export const getSubjectInstancePracticals = async (req, res) => {
 
     // 1. Verify allotment ownership
     const { data: allotment, error: allotError } = await supabaseAdmin
-      .from("subject_allotments")
+      .from("allotments")
       .select(`
         id,
         semester,
         batch_name,
         teacher_id,
-        master_subject_id,
-        master_subjects (
+        subject_id,
+        subjects:subject_id!master_subjects (
           id,
           name,
           course_code
@@ -228,14 +228,14 @@ export const getSubjectInstancePracticals = async (req, res) => {
     const { data: masterPracticals, error: prError } = await supabaseAdmin
       .from("master_practicals")
       .select("*")
-      .eq("master_subject_id", allotment.master_subject_id)
+      .eq("master_subject_id", allotment.subject_id)
       .order("pr_no");
 
     if (prError) throw prError;
 
     // 3. Get total students in this batch + semester
     const { count: totalStudents } = await supabaseAdmin
-      .from("studentss")
+      .from("students")
       .select("*", { count: "exact", head: true })
       .eq("semester", allotment.semester)
       .eq("batch_name", allotment.batch_name);
@@ -246,18 +246,18 @@ export const getSubjectInstancePracticals = async (req, res) => {
       (masterPracticals || []).map(async (mp) => {
         const { count: submittedCount } = await supabaseAdmin
           .from("submissions")
-          .select("id, student_id, studentss!inner(*)", { count: "exact", head: true })
+          .select("id, student_id, students!inner(*)", { count: "exact", head: true })
           .eq("practical_id", mp.id)
-          .eq("studentss.semester", allotment.semester)
-          .eq("studentss.batch_name", allotment.batch_name);
+          .eq("students.semester", allotment.semester)
+          .eq("students.batch_name", allotment.batch_name);
 
         const { count: flaggedCount } = await supabaseAdmin
           .from("submissions")
-          .select("id, student_id, studentss!inner(*)", { count: "exact", head: true })
+          .select("id, student_id, students!inner(*)", { count: "exact", head: true })
           .eq("practical_id", mp.id)
           .eq("flagged", true)
-          .eq("studentss.semester", allotment.semester)
-          .eq("studentss.batch_name", allotment.batch_name);
+          .eq("students.semester", allotment.semester)
+          .eq("students.batch_name", allotment.batch_name);
 
         return {
           id: mp.id,
@@ -278,7 +278,7 @@ export const getSubjectInstancePracticals = async (req, res) => {
     res.json({
       subject_instance: {
         id: allotment.id,
-        subject_name: allotment.master_subjects.name,
+        subject_name: allotment.subjects.name,
         semester: allotment.semester,
         batch_name: allotment.batch_name
       },

@@ -55,7 +55,7 @@ export const getDashboardStats = async (req, res) => {
                try {
                               const [studentsCount, subjectsCount, teachersCount] = await Promise.all([
                                              supabaseAdmin.from("students").select("*", { count: "exact", head: true }),
-                                             supabaseAdmin.from("master_subjects").select("*", { count: "exact", head: true }),
+                                             supabaseAdmin.from("subjects").select("*", { count: "exact", head: true }),
                                              supabaseAdmin.from("teachers").select("*", { count: "exact", head: true }),
                               ]);
 

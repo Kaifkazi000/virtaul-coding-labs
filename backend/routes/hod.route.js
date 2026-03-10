@@ -1,24 +1,27 @@
 import { Router } from "express";
 import {
-               getStudents,
-               getMasterSubjects,
-               getAllTeachers,
-               createMasterSubject,
-               allotSubject,
-               manualRegisterStudent,
-               bulkRegisterStudents,
-               promoteBatch,
-               createMasterPractical,
-               getMasterPracticals,
-               deleteMasterSubject,
-               deleteStudent,
-               deleteMasterPractical,
-               getSubjectAllotments,
-               getStats
+    getStudents,
+    getMasterSubjects,
+    getAllTeachers,
+    createMasterSubject,
+    allotSubject,
+    manualRegisterStudent,
+    bulkRegisterStudents,
+    promoteBatch,
+    createMasterPractical,
+    getMasterPracticals,
+    deleteMasterSubject,
+    deleteStudent,
+    deleteMasterPractical,
+    getSubjectAllotments,
+    getStats,
+    registerTeacher,
+    deleteTeacher,
+    deleteAllotment,
+    searchAlumni
 } from "../controllers/hod.controller.js";
 import {
-               login,
-               getDashboardStats
+    login
 } from "../controllers/hodAuth.controller.js";
 
 const router = Router();
@@ -27,29 +30,32 @@ const router = Router();
 router.post("/auth/login", login);
 
 // HOD Dashboard stats
-router.get("/stats", getDashboardStats);
+router.get("/stats", getStats);
 
 // HOD core routes
 router.get("/teachers", getAllTeachers);
 router.get("/students", getStudents);
 router.get("/master-subjects", getMasterSubjects);
-router.post("/master-subject", createMasterSubject);
+router.post("/master-subjects", createMasterSubject);
 router.post("/allot-subject", allotSubject);
 router.get("/master-subjects/:subjectId/practicals", getMasterPracticals);
-router.post("/master-practical", createMasterPractical);
+router.post("/master-practicals", createMasterPractical);
 router.post("/register-student", manualRegisterStudent);
 router.post("/bulk-register-students", bulkRegisterStudents);
 router.post("/promote-batch", promoteBatch);
+router.post("/register-teacher", registerTeacher);
 
 // Delete routes
 router.delete("/master-subjects/:id", deleteMasterSubject);
 router.delete("/students/:id", deleteStudent);
+router.delete("/teachers/:id", deleteTeacher);
 router.delete("/master-practicals/:id", deleteMasterPractical);
+router.delete("/allotments/:id", deleteAllotment);
 
 // Allotments
 router.get("/allotments", getSubjectAllotments);
 
-// Stats
-router.get("/stats", getStats);
+// Alumni
+router.get("/alumni", searchAlumni);
 
 export default router;

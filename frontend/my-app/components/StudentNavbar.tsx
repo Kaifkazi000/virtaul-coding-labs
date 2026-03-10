@@ -2,13 +2,14 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, GraduationCap, User } from "lucide-react";
+import { LogOut, GraduationCap, User, Settings } from "lucide-react";
 
 interface StudentNavbarProps {
                studentName?: string;
+               onSettingsClick?: () => void;
 }
 
-export default function StudentNavbar({ studentName }: StudentNavbarProps) {
+export default function StudentNavbar({ studentName, onSettingsClick }: StudentNavbarProps) {
                const router = useRouter();
 
                const handleLogout = () => {
@@ -46,6 +47,14 @@ export default function StudentNavbar({ studentName }: StudentNavbarProps) {
                                                                                                          <User className="w-4 h-4 text-gray-400" />
                                                                                                          <span className="text-sm font-bold text-black">{studentName || "Student"}</span>
                                                                                           </div>
+
+                                                                                          <button
+                                                                                                         onClick={onSettingsClick}
+                                                                                                         className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                                                                                         title="Change Password"
+                                                                                          >
+                                                                                                         <Settings className="w-5 h-5" />
+                                                                                          </button>
 
                                                                                           <button
                                                                                                          onClick={handleLogout}

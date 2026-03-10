@@ -25,13 +25,14 @@ export const createSubjectInstance = async (req, res) => {
     const teacherId = userData.user.id;
 
     const { data, insertError } = await supabaseAdmin
-      .from("subject_instances")
+      .from("allotments")
       .insert([
         {
-          subject_name,
-          subject_code,
+          subject_id: subject_code, // Assuming subject_code maps to an id or we need to find the subject_id
           semester,
           teacher_id: teacherId,
+          batch_name: "A", // Default if not provided
+          academic_year: new Date().getFullYear()
         },
       ])
       .select()
@@ -65,13 +66,13 @@ export const getTeacherSubjectInstances = async (req, res) => {
     const teacherId = userData.user.id;
 
     const { data, fetchError } = await supabaseAdmin
-      .from("subject_allotments")
+      .from("allotments")
       .select(`
         id,
         semester,
         batch_name,
         academic_year,
-        master_subjects (
+        subjects:subject_id!master_subjects (
           id,
           name,
           course_code
@@ -87,8 +88,8 @@ export const getTeacherSubjectInstances = async (req, res) => {
     // Map to a format compatible with existing frontend
     const formattedData = (data || []).map(allot => ({
       id: allot.id,
-      subject_name: allot.master_subjects.name,
-      subject_code: allot.master_subjects.course_code,
+      subject_name: allot.subjects.name,
+      subject_code: allot.subjects.course_code,
       semester: allot.semester,
       batch_name: allot.batch_name,
       academic_year: allot.academic_year
@@ -119,7 +120,7 @@ export const getStudentSubjectInstances = async (req, res) => {
 
     // 1. Get student profile with batch and semester
     const { data: student, error: studentError } = await supabaseAdmin
-      .from("studentss")
+      .from("students")
       .select("semester, batch_name")
       .eq("auth_user_id", studentAuthId)
       .single();
@@ -129,14 +130,14 @@ export const getStudentSubjectInstances = async (req, res) => {
 
     // 2. Fetch allotted subjects matching student's batch and semester
     const { data: allotments, error: fetchError } = await supabaseAdmin
-      .from("subject_allotments")
+      .from("allotments")
       .select(`
         id,
-        master_subject_id,
+        subject_id,
         batch_name,
         semester,
         academic_year,
-        master_subjects (
+        subjects:subject_id!master_subjects (
           id,
           name,
           course_code
@@ -154,10 +155,10 @@ export const getStudentSubjectInstances = async (req, res) => {
     // Map to a format compatible with existing frontend (using subject_instance style)
     const formattedData = (allotments || []).map(allot => ({
       id: allot.id, // Using allotment ID as instance ID
-      subject_name: allot.master_subjects.name,
-      subject_code: allot.master_subjects.course_code,
+      subject_name: allot.subjects.name,
+      subject_code: allot.subjects.course_code,
       semester: allot.semester,
-      master_subject_id: allot.master_subject_id,
+      subject_id: allot.subject_id,
       batch_name: allot.batch_name
     }));
 
