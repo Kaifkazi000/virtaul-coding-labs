@@ -232,9 +232,11 @@ export default function StudentPracticalDetailPage() {
 
           <div className="flex items-center gap-3">
             {submission && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 shadow-sm animate-in fade-in slide-in-from-top-2">
-                <CheckCircle2 className="w-4 h-4" />
-                <span className="text-[11px] font-black uppercase tracking-tight">Status: Submitted</span>
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm animate-in fade-in slide-in-from-top-2 ${submission.status === 'checked' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                {submission.status === 'checked' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+                <span className="text-[11px] font-black uppercase tracking-tight">
+                  Status: {submission.status === "checked" ? "Checked & Rated" : "Review Pending"}
+                </span>
               </div>
             )}
             <div className="flex items-center gap-2 px-4 py-2 bg-white text-gray-600 rounded-full border border-gray-100 shadow-sm">
@@ -270,6 +272,25 @@ export default function StudentPracticalDetailPage() {
                   <h1 className="text-4xl font-black text-black tracking-tighter leading-tight mb-8">
                     {practical.title}
                   </h1>
+
+                  {/* Teacher Feedback Banner */}
+                  {submission?.status === "checked" && (
+                    <div className="mb-8 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 p-6 rounded-[2rem]">
+                      <h3 className="text-[11px] font-black text-emerald-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" /> Teacher Review Complete
+                      </h3>
+                      <div className="bg-white p-4 rounded-xl border border-emerald-100/50 shadow-sm space-y-4">
+                        <div className="flex items-center justify-between">
+                           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Score / Rating</span>
+                           <span className="text-lg font-black text-emerald-600">{submission.score}/10</span>
+                        </div>
+                        <div className="border-t border-gray-50 pt-3">
+                           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Remarks</span>
+                           <p className="text-sm font-bold text-gray-700 leading-relaxed">{submission.teacher_feedback || "No remarks provided."}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-8">
                     {practical.description && (

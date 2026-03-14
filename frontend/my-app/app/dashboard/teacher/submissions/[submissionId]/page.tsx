@@ -36,7 +36,7 @@ export default function TeacherSubmissionDetailPage() {
   const [showCheckModal, setShowCheckModal] = useState(false);
   const [checking, setChecking] = useState(false);
   const [feedback, setFeedback] = useState("");
-  const [score, setScore] = useState(10);
+  const [grade, setGrade] = useState("A");
 
   useEffect(() => {
     const fetchSubmission = async () => {
@@ -105,13 +105,19 @@ export default function TeacherSubmissionDetailPage() {
     setChecking(true);
     try {
       const token = localStorage.getItem("teacher_token");
+      
+      // Map Grade to a reasonable numeric score for the DB
+      const scoreMap: Record<string, number> = { "A": 10, "B": 8, "C": 6 };
+      const numericScore = scoreMap[grade] || 10;
+      const finalFeedback = `[Grade ${grade}] ${feedback}`;
+
       const res = await fetch(`/api/practicals/submission/${submissionId}/check`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({ score, feedback })
+        body: JSON.stringify({ score: numericScore, feedback: finalFeedback })
       });
 
       if (!res.ok) throw new Error("Failed to mark as checked");
@@ -353,15 +359,16 @@ export default function TeacherSubmissionDetailPage() {
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Score (Max 10)</label>
-                  <input
-                    type="number"
-                    max={10}
-                    min={0}
-                    value={score}
-                    onChange={(e) => setScore(Number(e.target.value))}
-                    className="w-full bg-gray-50 border-gray-100 rounded-2xl px-6 py-4 font-bold text-lg focus:ring-2 focus:ring-black outline-none transition-all"
-                  />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Assign Grade</label>
+                  <select
+                    value={grade}
+                    onChange={(e) => setGrade(e.target.value)}
+                    className="w-full bg-gray-50 border-gray-100 rounded-2xl px-6 py-4 font-bold text-lg focus:ring-2 focus:ring-black outline-none transition-all appearance-none cursor-pointer"
+                  >
+                    <option value="A">Grade A (Excellent)</option>
+                    <option value="B">Grade B (Good)</option>
+                    <option value="C">Grade C (Needs Improvement)</option>
+                  </select>
                 </div>
 
                 <div className="space-y-2">

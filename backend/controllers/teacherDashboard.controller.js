@@ -140,8 +140,8 @@ export const getStudentSubmissionDetail = async (req, res) => {
       .from("submissions")
       .select(`
         *,
-        students:student_id (*),
-        practicals:practical_id!master_practicals (*)
+        students (*),
+        practicals:master_practicals (*)
       `)
       .eq("id", submissionId)
       .single();
@@ -155,7 +155,7 @@ export const getStudentSubmissionDetail = async (req, res) => {
       .from("allotments")
       .select("*")
       .eq("teacher_id", teacherId)
-      .eq("subject_id", submission.practicals.subject_id)
+      .eq("subject_id", submission.practicals.master_subject_id)
       .eq("batch_name", submission.students.batch_name)
       .eq("semester", submission.students.semester)
       .single();
