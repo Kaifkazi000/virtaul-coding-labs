@@ -77,46 +77,46 @@ export const deleteTeacher = async (req, res) => {
  * HOD: Delete Allotment
  */
 export const deleteAllotment = async (req, res) => {
-	try {
-		const { id } = req.params;
-		const { error } = await supabaseAdmin
-			.from("allotments")
-			.delete()
-			.eq("id", id);
+               try {
+                              const { id } = req.params;
+                              const { error } = await supabaseAdmin
+                                             .from("allotments")
+                                             .delete()
+                                             .eq("id", id);
 
-		if (error) throw error;
-		res.json({ message: "Allotment removed successfully" });
-	} catch (err) {
-		res.status(500).json({ error: err.message });
-	}
+                              if (error) throw error;
+                              res.json({ message: "Allotment removed successfully" });
+               } catch (err) {
+                              res.status(500).json({ error: err.message });
+               }
 };
 
 export const getStudents = async (req, res) => {
-	try {
-		console.log("[DEBUG] getStudents called. Query params:", req.query);
-		const { semester, batch } = req.query;
-		let query = supabaseAdmin
-			.from("students")
-			.select("*")
-			.order("roll_no", { ascending: true }); // Fixed roll -> roll_no
+               try {
+                              console.log("[DEBUG] getStudents called. Query params:", req.query);
+                              const { semester, batch } = req.query;
+                              let query = supabaseAdmin
+                                             .from("students")
+                                             .select("*")
+                                             .order("roll_no", { ascending: true }); // Fixed roll -> roll_no
 
-		if (semester) {
-			console.log("[DEBUG] Filtering by semester:", semester);
-			query = query.eq("semester", String(semester));
-		}
-		if (batch) query = query.eq("batch_name", batch);
+                              if (semester) {
+                                             console.log("[DEBUG] Filtering by semester:", semester);
+                                             query = query.eq("semester", String(semester));
+                              }
+                              if (batch) query = query.eq("batch_name", batch);
 
-		const { data, error } = await query;
-		if (error) {
-			console.error("[DEBUG] Students Fetch Error:", error.message);
-			throw error;
-		}
-		console.log(`[DEBUG] Found ${data?.length || 0} students`);
-		res.json(data);
-	} catch (err) {
-		console.error("[DEBUG] CRITICAL Error in getStudents:", err.message);
-		res.status(500).json({ error: err.message });
-	}
+                              const { data, error } = await query;
+                              if (error) {
+                                             console.error("[DEBUG] Students Fetch Error:", error.message);
+                                             throw error;
+                              }
+                              console.log(`[DEBUG] Found ${data?.length || 0} students`);
+                              res.json(data);
+               } catch (err) {
+                              console.error("[DEBUG] CRITICAL Error in getStudents:", err.message);
+                              res.status(500).json({ error: err.message });
+               }
 };
 
 /**
@@ -154,12 +154,36 @@ export const getAllTeachers = async (req, res) => {
 };
 
 /**
+ * HOD: Get available student batches for a year/semester
+ */
+export const getAvailableBatches = async (req, res) => {
+               try {
+                              const { semester, academic_year } = req.query;
+                              if (!semester || !academic_year) {
+                                             return res.status(400).json({ error: "Semester and Academic Year are required" });
+                              }
+
+                              const { data, error } = await supabaseAdmin
+                                             .from("students")
+                                             .select("batch_name")
+                                             .match({ semester: Number(semester), admission_year: Number(academic_year) });
+
+                              if (error) throw error;
+
+                              const batches = [...new Set(data.map(s => s.batch_name))].sort();
+                              res.json(batches);
+               } catch (err) {
+                              res.status(500).json({ error: err.message });
+               }
+};
+
+/**
  * HOD: Create a Master Subject
  */
 export const createMasterSubject = async (req, res) => {
                try {
                               const { name, course_code, department } = req.body;
-                              
+
                               // 1. Create Subject
                               const { data: subject, error: subjectError } = await supabaseAdmin
                                              .from("master_subjects")
@@ -168,26 +192,6 @@ export const createMasterSubject = async (req, res) => {
                                              .single();
 
                               if (subjectError) throw subjectError;
-
-                              // 2. Initialize 10 Practicals
-                              const practicalTemplates = Array.from({ length: 10 }, (_, i) => ({
-                                             master_subject_id: subject.id,
-                                             pr_no: i + 1,
-                                             title: `Practical ${i + 1}`,
-                                             description: "",
-                                             task: "",
-                                             theory: "",
-                                             sample_code: "",
-                                             language: "javascript"
-                              }));
-
-                              const { error: practicalError } = await supabaseAdmin
-                                             .from("master_practicals")
-                                             .insert(practicalTemplates);
-
-                              if (practicalError) {
-                                             console.error("Practical Initialization Error:", practicalError.message);
-                              }
 
                               res.status(201).json(subject);
                } catch (err) {
@@ -227,60 +231,68 @@ export const allotSubject = async (req, res) => {
  */
 export const manualRegisterStudent = async (req, res) => {
                try {
-                               const { name, email, prn, roll, semester, batch_name, academic_year } = req.body;
+                              const { name, email, prn, roll, semester, batch_name, academic_year } = req.body;
 
-                               // 1. Create or Find Auth User
-                               let targetUserId = null;
-                               const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-                                              email,
-                                              password: prn, // Default password is PRN
-                                              email_confirm: true,
-                                              user_metadata: { role: 'student' }
-                               });
+                              // 0. PRN Validation
+                              if (!prn || !/^\d{16}$/.test(prn)) {
+                                             return res.status(400).json({ error: "PRN must be exactly 16 numeric digits" });
+                              }
 
-                               if (authError) {
-                                              if (authError.message.includes("already registered") || authError.status === 422 || authError.status === 400) {
-                                                             const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
-                                                             const existingUser = listData?.users?.find(u => u.email?.toLowerCase() === email?.toLowerCase());
-                                                             if (existingUser) {
-                                                                            targetUserId = existingUser.id;
-                                                             } else {
-                                                                            throw new Error(`Profile sync failed: ${authError.message}`);
-                                                             }
-                                              } else {
-                                                             throw authError;
-                                              }
-                               } else {
-                                              targetUserId = authUser.user.id;
-                               }
+                              // 1. Create or Find Auth User
+                              let targetUserId = null;
+                              const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+                                             email,
+                                             password: prn, // Default password is PRN
+                                             email_confirm: true,
+                                             user_metadata: { role: 'student' }
+                              });
 
-                               // 2. Upsert Student Profile
-                               const { data: newStudent, error: profileError } = await supabaseAdmin
-                                              .from("students")
-                                              .upsert([{
-                                                             auth_user_id: targetUserId,
-                                                             full_name: name,
-                                                             email,
-                                                             prn,
-                                                             roll_no: roll || null,
-                                                             semester: semester,
-                                                             batch_name: batch_name,
-                                                             admission_year: academic_year,
-                                                             department: 'CSE',
-                                                             status: 'active'
-                                              }], { onConflict: 'prn' })
-                                              .select()
-                                              .single();
+                              if (authError) {
+                                             if (authError.message.includes("already registered") || authError.status === 422 || authError.status === 400) {
+                                                            const { data: listData } = await supabaseAdmin.auth.admin.listUsers();
+                                                            const existingUser = listData?.users?.find(u => u.email?.toLowerCase() === email?.toLowerCase());
+                                                            if (existingUser) {
+                                                                           targetUserId = existingUser.id;
+                                                            } else {
+                                                                           throw new Error(`Profile sync failed: ${authError.message}`);
+                                                            }
+                                             } else {
+                                                            throw authError;
+                                             }
+                              } else {
+                                             targetUserId = authUser.user.id;
+                              }
 
-                               if (profileError) throw profileError;
+                              // 2. Upsert Student Profile
+                              const { data: newStudent, error: profileError } = await supabaseAdmin
+                                             .from("students")
+                                             .upsert([{
+                                                            auth_user_id: targetUserId,
+                                                            full_name: name,
+                                                            email,
+                                                            prn,
+                                                            roll_no: roll || null,
+                                                            semester: semester,
+                                                            batch_name: batch_name,
+                                                            admission_year: academic_year,
+                                                            department: 'CSE',
+                                                            status: 'active'
+                                             }], { onConflict: 'prn' })
+                                             .select()
+                                             .single();
 
-                               res.status(201).json({ 
-                                              message: "Student registered successfully", 
-                                              student: newStudent 
-                               });
+                              if (profileError) throw profileError;
+
+                              // 3. Rebalance batches for this cohort
+                              await rebalanceCohortBatchesForParams(academic_year, semester);
+
+                              res.status(201).json({
+                                             message: "Student registered successfully",
+                                             student: newStudent
+                              });
                } catch (err) {
-                               console.error("[ManualReg] Error:", err.message);
-                               res.status(500).json({ error: err.message });
+                              console.error("[ManualReg] Error:", err.message);
+                              res.status(500).json({ error: err.message });
                }
 };
 
@@ -312,7 +324,10 @@ export const bulkRegisterStudents = async (req, res) => {
                                              // Sort by name for deterministic batching
                                              groupStudents.sort((a, b) => (a.name || a.full_name || "").localeCompare(b.name || b.full_name || ""));
 
-                                             const BATCH_SIZE = 30; // Standard batch size
+                                             const totalCount = groupStudents.length;
+                                             // New Logic: 2 batches if <= 60, else 3 batches
+                                             const batchCount = totalCount <= 60 ? 2 : 3;
+                                             const BATCH_SIZE = Math.ceil(totalCount / batchCount);
 
                                              for (let i = 0; i < groupStudents.length; i++) {
                                                             const student = groupStudents[i];
@@ -327,6 +342,11 @@ export const bulkRegisterStudents = async (req, res) => {
                                                                            const finalRoll = roll || roll_no;
                                                                            const finalSem = semester;
                                                                            const finalYear = Number(admission_year || academic_year);
+
+                                                                           // PRN Validation
+                                                                           if (!finalPRN || !/^\d{16}$/.test(finalPRN)) {
+                                                                                          throw new Error(`Invalid PRN: ${finalPRN}. Must be 16 digits.`);
+                                                                           }
 
                                                                            let targetUserId = null;
                                                                            console.log(`[BulkImport] Processing: ${finalEmail} (PRN: ${finalPRN})`);
@@ -395,10 +415,24 @@ export const bulkRegisterStudents = async (req, res) => {
                                              }
                               }
 
+                              // PHASE 2: Global Year-Wise Re-Batching
+                              console.log("[BulkImport] PHASE 2: Re-batching affected groups...");
+                              const affectedGroups = new Set();
+                              students.forEach(s => {
+                                             const year = Number(s.admission_year || s.academic_year);
+                                             const sem = Number(s.semester);
+                                             if (year && sem) affectedGroups.add(`${year}_${sem}`);
+                              });
+
+                              for (const groupKey of affectedGroups) {
+                                             const [year, sem] = groupKey.split('_').map(Number);
+                                             await rebalanceCohortBatchesForParams(year, sem);
+                              }
+
                               const successCount = results.filter(r => r.status === "success").length;
                               const failedCount = results.filter(r => r.status === "error").length;
                               console.log(`[BulkImport] FINISHED: ${successCount} success, ${failedCount} fail.`);
-                              res.json({ message: `Import finished: ${successCount} successful, ${failedCount} failed.`, results });
+                              res.json({ message: `Import finished: ${successCount} successful, ${failedCount} failed. All batches synchronized.`, results });
 
                } catch (err) {
                               console.error(`[BulkImport] Fatal Controller Error:`, err.message);
@@ -463,6 +497,96 @@ export const promoteBatch = async (req, res) => {
                               res.status(500).json({ error: err.message });
                }
 };
+
+/**
+ * HOD: Department-Wide Synchronized Promotion
+ */
+export const promoteDepartment = async (req, res) => {
+               try {
+                              console.log("[PromoteDept] Starting Synchronized Promotion...");
+
+                              // 1. Snapshot Performance History
+                              const { data: activeStudents, error: fetchError } = await supabaseAdmin
+                                             .from("students")
+                                             .select("*")
+                                             .eq("status", "active");
+
+                              if (fetchError) throw fetchError;
+
+                              if (activeStudents && activeStudents.length > 0) {
+                                             const historyEntries = activeStudents.map(s => ({
+                                                            prn: s.prn,
+                                                            semester: s.semester,
+                                                            academic_year: s.admission_year || new Date().getFullYear(),
+                                                            batch_name: s.batch_name,
+                                                            summary_data: {
+                                                                           full_name: s.full_name,
+                                                                           snapshot_date: new Date().toISOString()
+                                                            }
+                                             }));
+
+                                             const { error: historyError } = await supabaseAdmin
+                                                            .from("student_performance_history")
+                                                            .insert(historyEntries);
+
+                                             if (historyError) {
+                                                            console.warn("[PromoteDept] History Table Error (skipping snapshot):", historyError.message);
+                                                            // We continue even if history fail, but ideally the table should exist
+                                             }
+                              }
+
+                              // 2. Graduate Semester 8
+                              const { data: graduates } = await supabaseAdmin
+                                             .from("students")
+                                             .select("*")
+                                             .eq("semester", 8);
+
+                              if (graduates && graduates.length > 0) {
+                                             const alumniData = graduates.map(g => ({
+                                                            prn: g.prn,
+                                                            full_name: g.full_name,
+                                                            email: g.email,
+                                                            admission_year: g.admission_year,
+                                                            passout_year: new Date().getFullYear(),
+                                                            final_batch: g.batch_name,
+                                                            academic_history: { final_semester: 8 }
+                                             }));
+
+                                             await supabaseAdmin.from("alumni").insert(alumniData);
+
+                                             // Delete graduates
+                                             await supabaseAdmin.from("students").delete().eq("semester", 8);
+                              }
+
+                              // 3. Increment Semesters (order matters to avoid collisions if semester was the only identifier, but PRN is unique)
+                              // Logic: 7 -> 8, 6 -> 7, ... 1 -> 2
+                              for (let s = 7; s >= 1; s--) {
+                                             await supabaseAdmin
+                                                            .from("students")
+                                                            .update({ semester: s + 1 })
+                                                            .eq("semester", s);
+                              }
+
+                               // 4. Re-batch all active cohorts (to handle any shifts or rule changes)
+                               const { data: activeStudentsAfter } = await supabaseAdmin
+                                              .from("students")
+                                              .select("admission_year, semester")
+                                              .eq("status", "active");
+
+                               if (activeStudentsAfter) {
+                                              const cohorts = new Set(activeStudentsAfter.map(s => `${s.admission_year}_${s.semester}`));
+                                              for (const c of cohorts) {
+                                                             const [y, sem] = c.split('_').map(Number);
+                                                             await rebalanceCohortBatchesForParams(y, sem);
+                                              }
+                               }
+
+                              res.json({ message: "Department-wide promotion completed successfully." });
+               } catch (err) {
+                              console.error("[PromoteDept] ERROR:", err.message);
+                              res.status(500).json({ error: err.message });
+               }
+};
 /**
  * HOD: Create Master Practical Template
  */
@@ -472,7 +596,9 @@ export const createMasterPractical = async (req, res) => {
 
                               const { data, error } = await supabaseAdmin
                                              .from("master_practicals")
-                                             .update({
+                                             .upsert({
+                                                            master_subject_id,
+                                                            pr_no: Number(pr_no),
                                                             title,
                                                             description,
                                                             task,
@@ -480,8 +606,6 @@ export const createMasterPractical = async (req, res) => {
                                                             sample_code,
                                                             language
                                              })
-                                             .eq("master_subject_id", master_subject_id)
-                                             .eq("pr_no", Number(pr_no))
                                              .select()
                                              .single();
 
@@ -568,14 +692,16 @@ export const deleteMasterSubject = async (req, res) => {
 export const deleteStudent = async (req, res) => {
                try {
                               const { id } = req.params;
-                              // 1. Get auth_user_id first to delete from Supabase Auth
+                              // 1. Get student details before deletion for reordering
                               const { data: student, error: fetchError } = await supabaseAdmin
                                              .from("students")
-                                             .select("auth_user_id")
+                                             .select("*")
                                              .eq("id", id)
                                              .single();
 
                               if (fetchError) throw fetchError;
+
+                              const { roll_no, semester, admission_year, auth_user_id } = student;
 
                               // 2. Delete Profile
                               const { error: profileError } = await supabaseAdmin
@@ -584,8 +710,39 @@ export const deleteStudent = async (req, res) => {
                                              .eq("id", id);
                               if (profileError) throw profileError;
 
-                              // 3. Delete Auth User
-                              const { error: authError } = await supabase.auth.admin.deleteUser(student.auth_user_id);
+                              // 3. Reorder following students' roll numbers
+                              if (roll_no) {
+                                             const { error: reorderError } = await supabaseAdmin.rpc('reorder_roll_numbers', {
+                                                            target_year: admission_year,
+                                                            target_sem: semester,
+                                                            deleted_roll: roll_no
+                                             });
+                                             
+                                             // Fallback if RPC doesn't exist (manual update)
+                                             if (reorderError) {
+                                                            console.warn("RPC reorder_roll_numbers failed, falling back to manual update:", reorderError.message);
+                                                            const { data: toUpdate, error: listError } = await supabaseAdmin
+                                                                           .from("students")
+                                                                           .select("id, roll_no")
+                                                                           .match({ admission_year, semester })
+                                                                           .gt('roll_no', roll_no);
+
+                                                            if (!listError && toUpdate) {
+                                                                           for (const s of toUpdate) {
+                                                                                          await supabaseAdmin
+                                                                                                         .from("students")
+                                                                                                         .update({ roll_no: s.roll_no - 1 })
+                                                                                                         .eq("id", s.id);
+                                                                           }
+                                                            }
+                                             }
+
+                                             // 4. Rebalance batches after reordering
+                                             await rebalanceCohortBatchesForParams(admission_year, semester);
+                              }
+
+                              // 5. Delete Auth User
+                              const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(auth_user_id);
                               if (authError) console.error("Auth Delete Warning:", authError.message);
 
                               res.json({ message: "Student deleted successfully" });
@@ -617,18 +774,40 @@ export const deleteMasterPractical = async (req, res) => {
  */
 export const getSubjectAllotments = async (req, res) => {
                try {
-                              const { data, error } = await supabaseAdmin
+                              // 1. Fetch allotments with subject details
+                              const { data: allotments, error: allotError } = await supabaseAdmin
                                              .from("allotments")
                                              .select(`
-                                                            *,
-                                                            subjects:subject_id!master_subjects(name, course_code),
-                                                            teachers (name, email)
-                                             `)
+                                                             *,
+                                                             subjects:subject_id(name, course_code)
+                                              `)
                                              .order("created_at", { ascending: false });
 
-                              if (error) throw error;
-                              res.json(data);
+                              if (allotError) throw allotError;
+
+                              // 2. Fetch all teachers
+                              const { data: teachers, error: teacherError } = await supabaseAdmin
+                                             .from("teachers")
+                                             .select("id, auth_user_id, name, email");
+
+                              if (teacherError) throw teacherError;
+
+                              // 3. Manually map teacher data
+                              const mergedData = allotments.map(allot => {
+                                             // Try matching by auth_user_id (standard) or id (fallback for legacy data)
+                                             const teacher = teachers.find(t =>
+                                                            (t.auth_user_id === allot.teacher_id) || (t.id === allot.teacher_id)
+                                             );
+
+                                             return {
+                                                            ...allot,
+                                                            teachers: teacher ? { name: teacher.name, email: teacher.email } : null
+                                             };
+                              });
+
+                              res.json(mergedData);
                } catch (err) {
+                              console.error("[getSubjectAllotments] Error:", err.message);
                               res.status(500).json({ error: err.message });
                }
 };
@@ -641,11 +820,119 @@ export const searchAlumni = async (req, res) => {
                               const { data, error } = await supabaseAdmin
                                              .from("alumni")
                                              .select("*")
-                                             .eq("prn", prn)
-                                             .maybeSingle();
+                                             .eq("prn", prn);
 
                               if (error) throw error;
                               res.json(data);
+               } catch (err) {
+                              res.status(500).json({ error: err.message });
+               }
+};
+
+/**
+ * HOD: Get Full Student History
+ */
+export const getStudentHistory = async (req, res) => {
+               try {
+                              const { prn } = req.params;
+                              if (!prn) return res.status(400).json({ error: "PRN is required" });
+
+                              // 1. Fetch current profile from students OR alumni
+                              let { data: profile, error: profileError } = await supabaseAdmin
+                                             .from("students")
+                                             .select("*")
+                                             .eq("prn", prn)
+                                             .maybeSingle();
+
+                              if (!profile) {
+                                             // Try alumni table
+                                             const { data: alumniProfile, error: alumniError } = await supabaseAdmin
+                                                            .from("alumni")
+                                                            .select("*")
+                                                            .eq("prn", prn)
+                                                            .maybeSingle();
+
+                                             if (alumniProfile) {
+                                                            profile = { ...alumniProfile, status: 'alumni' };
+                                             }
+                              }
+
+                              if (!profile) {
+                                             return res.status(404).json({ error: "Student not found in active or alumni records" });
+                              }
+
+                              // 2. Fetch history snapshots
+                              const { data: history, error: historyError } = await supabaseAdmin
+                                             .from("student_performance_history")
+                                             .select("*")
+                                             .eq("prn", prn)
+                                             .order("semester", { ascending: true });
+
+                              if (historyError) throw historyError;
+
+                              // 3. Fetch current submissions if active
+                              let currentSubmissions = [];
+                              if (profile.status !== 'alumni') {
+                                             const { data: subs, error: subsError } = await supabaseAdmin
+                                                            .from("submissions")
+                                                            .select(`
+                                                                           *,
+                                                                           practicals:practical_id (title, pr_no)
+                                                            `)
+                                                            .eq("student_id", profile.id);
+                                             if (!subsError) currentSubmissions = subs;
+                              }
+
+                              res.json({
+                                             profile,
+                                             history: history || [],
+                                             currentSubmissions
+                              });
+
+               } catch (err) {
+                              console.error("[GetHistory] Error:", err.message);
+                              res.status(500).json({ error: err.message });
+               }
+};
+/**
+ * Helper: Rebalance batches for a specific cohort
+ */
+async function rebalanceCohortBatchesForParams(year, semester) {
+               console.log(`[Rebalance] Re-batching Group: ${year} / Sem ${semester}`);
+
+               const { data: allStudents, error: fetchError } = await supabaseAdmin
+                              .from("students")
+                              .select("*")
+                              .eq("admission_year", year)
+                              .eq("semester", semester)
+                              .eq("status", "active");
+
+               if (fetchError || !allStudents || allStudents.length === 0) {
+                              console.error(`[Rebalance] Fetch error or no students for ${year}_${semester}:`, fetchError?.message);
+                              return;
+               }
+
+               // 1. Deterministic Sort: By Roll Number (Primary) then PRN (Secondary)
+               allStudents.sort((a,b) => (Number(a.roll_no)||999)-(Number(b.roll_no)||999) || (a.prn||"").localeCompare(b.prn||""));
+               const total = allStudents.length;
+               const count = total <= 60 ? 2 : 3;
+               const size = Math.ceil(total/count);
+               for(let i=0; i<total; i++) {
+                 const batch = String.fromCharCode(65 + Math.min(Math.floor(i/size), count - 1));
+                 if(allStudents[i].batch_name !== batch) await supabaseAdmin.from("students").update({batch_name: batch}).eq("id", allStudents[i].id);
+               }
+
+               console.log(`[Rebalance] Finished re-batching student batches`);
+}
+
+/**
+ * HOD: Trigger rebalance batches (API wrapper)
+ */
+export const rebalanceCohortBatches = async (req, res) => {
+               try {
+                              const { year, semester } = req.query;
+                              await rebalanceCohortBatchesForParams(year, semester);
+                              res.json({ message: "Rebalancing triggered successfully" });
                } catch (err) {
                               res.status(500).json({ error: err.message });
                }

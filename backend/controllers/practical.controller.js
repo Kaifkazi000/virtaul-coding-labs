@@ -1,11 +1,12 @@
 import { supabase, supabaseAdmin } from "../config/supabase.js";
+
 export const addPractical = async (req, res) => {
                try {
-                              // 🚫 Master Practicals are managed by HOD. Standalone creation removed.
-                              return res.status(403).json({ error: "Practicals must be added to the Master Repository by HOD." });
+                               // 🚫 Master Practicals are managed by HOD. Standalone creation removed.
+                               return res.status(403).json({ error: "Practicals must be added to the Master Repository by HOD." });
                } catch (err) {
-                              console.error(err);
-                              res.status(500).json({ error: "Server error" });
+                               console.error(err);
+                               res.status(500).json({ error: "Server error" });
                }
 };
 
@@ -85,7 +86,7 @@ export const getTeacherPracticalsBySubject = async (req, res) => {
 export const togglePracticalUnlock = async (req, res) => {
                try {
                               const { practicalId } = req.params;
-                              const { unlocked } = req.body; // true or false
+                              const { unlocked, allotmentId } = req.body; // true or false
 
                               const authHeader = req.headers.authorization;
                               if (!authHeader) {
@@ -99,66 +100,25 @@ export const togglePracticalUnlock = async (req, res) => {
                                              return res.status(401).json({ error: "Invalid token" });
                               }
 
-                              const teacherId = userData.user.id;
-
-                              // Get practical and verify teacher owns the subject instance
-                              const { data: practical, error: practicalError } = await supabaseAdmin
-                                             .from("master_practicals")
-                                             .select("id")
-                                             .eq("id", practicalId)
-                                             .single();
-
-                              if (practicalError || !practical) {
-                                             return res.status(404).json({ error: "Practical not found" });
-                              }
-
-                              // Verify teacher owns the subject instance (allotment)
-                              const { data: subjectInstance, error: instanceError } = await supabaseAdmin
-                                             .from("allotments")
-                                             .select("id, teacher_id")
-                                             .eq("id", practical.subject_instance_id) // dependent on if subject_instance_id is actually allotment_id in practicals table? 
-                                             .single();
-
-                              // Note: In strict Academic OS, practicals link to subjects (templates) or allotments (instances)?
-                              // Based on earlier code: practicals.subject_id replaced master_subject_id.
-                              // But here we are using subject_instance_id. 
-                              // If this is for "Student Practicals" (instances), fine.
-                              // If it's for Master Practicals, we need to be careful.
-                              // Assuming this is for the specific instance created by teacher.
-
-                              if (instanceError || !subjectInstance) {
-                                             return res.status(404).json({ error: "Subject instance not found" });
-                              }
-
-                              if (subjectInstance.teacher_id !== teacherId) {
-                                             return res.status(403).json({
-                                                            error: "You don't have permission to modify this practical",
+                              // Upsert into allotment_practical_status
+                              const { error: upsertError } = await supabaseAdmin
+                                             .from("allotment_practical_status")
+                                             .upsert({
+                                                            allotment_id: allotmentId,
+                                                            master_practical_id: practicalId,
+                                                            is_unlocked: unlocked === true,
+                                                            updated_at: new Date().toISOString()
+                                             }, {
+                                                            onConflict: "allotment_id, master_practical_id"
                                              });
-                              }
 
-                              // Update unlock status
-                              // Note: Selection of specific instance for toggle?
-                              // In the new model, we use allotment_practical_status to track un-locks per batch.
-                              // However, the requested plan says "Teachers will now ONLY be able to lock/unlock practicals".
-                              // I'll keep the current status mechanism (allotment_practical_status) if it exists,
-                              // or use a flag in the master list if we want it global. 
-                              // USER said "consolidate practical table", so I'll check if allotment_practical_status still makes sense.
-                              // Given "Teachers will now ONLY be able to lock/unlock", it implies per-allotment control.
-
-                              const { data: updatedPractical, error: updateError } = await supabaseAdmin
-                                             .from("master_practicals")
-                                             .update({ is_unlocked: unlocked === true })
-                                             .eq("id", practicalId)
-                                             .select()
-                                             .single();
-
-                              if (updateError) {
-                                             return res.status(400).json({ error: updateError.message });
+                              if (upsertError) {
+                                             return res.status(400).json({ error: upsertError.message });
                               }
 
                               res.json({
                                              message: `Practical ${unlocked ? "unlocked" : "locked"} successfully`,
-                                             practical: updatedPractical,
+                                             is_unlocked: unlocked
                               });
                } catch (err) {
                               console.error(err);
@@ -177,19 +137,27 @@ export const getStudentPracticalsBySubjectInstance = async (req, res) => {
                               const { data: userData, error: authError } = await supabase.auth.getUser(token);
                               if (authError || !userData.user) return res.status(401).json({ error: "Invalid token" });
 
-                              const studentId = userData.user.id;
+                              const studentIdStr = userData.user.id; // auth_user_id
 
-                              const { data: student } = await supabaseAdmin.from("students").select("id, semester, batch_name").eq("auth_user_id", studentId).single();
+                              const { data: student } = await supabaseAdmin.from("students").select("id, semester, batch_name").eq("auth_user_id", studentIdStr).single();
                               if (!student) return res.status(404).json({ error: "Student not found" });
 
-                              const { data: allotment } = await supabaseAdmin.from("allotments").select("*, subjects(*)").eq("id", subjectInstanceId).single();
+                              const { data: allotment } = await supabaseAdmin
+                                             .from("allotments")
+                                             .select(`
+                                                            *,
+                                                            subjects:master_subjects(*)
+                                             `)
+                                             .eq("id", subjectInstanceId)
+                                             .single();
+
                               if (!allotment) return res.status(404).json({ error: "No matching enrollment found" });
 
                               const { data: masterPracticals } = await supabaseAdmin.from("master_practicals").select("*").eq("master_subject_id", allotment.subject_id).order("pr_no");
 
                               const [unlockStatuses, submissions] = await Promise.all([
                                              supabaseAdmin.from("allotment_practical_status").select("*").eq("allotment_id", allotment.id),
-                                             supabaseAdmin.from("submissions").select("*").eq("student_id", studentId)
+                                             supabaseAdmin.from("submissions").select("*").eq("student_id", student.id)
                               ]);
 
                               const unlockMap = new Map();
@@ -202,6 +170,7 @@ export const getStudentPracticalsBySubjectInstance = async (req, res) => {
                                              ...mp,
                                              is_unlocked: unlockMap.get(mp.id) || false,
                                              submission: submissionMap.get(mp.id) || null
+                                             // Note: master_practicals should have description, task, theory etc.
                               }));
 
                               res.json(merged);
@@ -233,4 +202,73 @@ export const getPracticalDetail = async (req, res) => {
                               console.error(err);
                               res.status(500).json({ error: "Server error" });
                }
+};
+
+/**
+ * TEACHER: Mark submission as checked
+ */
+export const checkSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { score, feedback } = req.body;
+
+    const { data: submission, error: subError } = await supabaseAdmin
+      .from("submissions")
+      .update({
+        status: "checked",
+        score: score || 10,
+        teacher_feedback: feedback || "Checked",
+        checked_at: new Date().toISOString()
+      })
+      .eq("id", submissionId)
+      .select()
+      .single();
+
+    if (subError) throw subError;
+    res.json({ message: "Submission marked as checked", submission });
+  } catch (err) {
+    console.error("[CheckSubmission] Error:", err);
+    res.status(500).json({ error: "Server error marking submission checked" });
+  }
+};
+
+/**
+ * STUDENT: Get notifications for checked practicals
+ */
+export const getStudentNotifications = async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: "Authorization token missing" });
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+    if (authError || !userData.user) return res.status(401).json({ error: "Invalid token" });
+    const { data: student } = await supabaseAdmin.from("students").select("id").eq("auth_user_id", userData.user.id).single();
+    if (!student) return res.status(404).json({ error: "Student profile not found" });
+
+    const { data: submissions, error: subError } = await supabaseAdmin.from("submissions")
+      .select("id, checked_at, practical_id")
+      .eq("student_id", student.id)
+      .eq("status", "checked")
+      .order("checked_at", { ascending: false })
+      .limit(10);
+
+    if (subError) throw subError;
+    if (!submissions || submissions.length === 0) return res.json([]);
+
+    const prIds = [...new Set(submissions.map(s => s.practical_id))];
+    const { data: practicals, error: prError } = await supabaseAdmin.from("master_practicals").select("id, title").in("id", prIds);
+    if (prError) throw prError;
+
+    const prMap = new Map();
+    practicals?.forEach(p => prMap.set(p.id, p));
+
+    const merged = submissions.map(s => ({
+      ...s,
+      master_practicals: prMap.get(s.practical_id) || { title: "Practical" }
+    }));
+    res.json(merged);
+  } catch (err) {
+    console.error("[Notifications] Merge Error:", err);
+    res.status(500).json({ error: "Server error fetching notifications" });
+  }
 };

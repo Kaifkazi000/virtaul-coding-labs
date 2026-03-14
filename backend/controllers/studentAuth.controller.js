@@ -87,7 +87,7 @@ export const getCurrentStudent = async (req, res) => {
 
     const { data, error } = await supabaseAdmin
       .from("students")
-      .select("full_name, email, prn, department, semester")
+      .select("full_name, email, prn, department, semester, roll_no, batch_name")
       .eq("auth_user_id", userData.user.id)
       .single();
 

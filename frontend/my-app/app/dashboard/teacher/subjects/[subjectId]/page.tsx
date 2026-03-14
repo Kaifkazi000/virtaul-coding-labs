@@ -30,10 +30,12 @@ export default function TeacherSubjectDetailPage() {
   const [practicals, setPracticals] = useState<any[]>([]);
   const [selectedPractical, setSelectedPractical] = useState<any>(null);
   const [practicalStudents, setPracticalStudents] = useState<any>(null);
+  const [batchStudents, setBatchStudents] = useState<any[]>([]);
   const [selectedPr, setSelectedPr] = useState<number | "">("");
-  const [activeTab, setActiveTab] = useState<"practicals" | "add">("practicals");
+  const [activeTab, setActiveTab] = useState<"practicals" | "add" | "students">("practicals");
   const [loading, setLoading] = useState(true);
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const [loadingBatch, setLoadingBatch] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -172,6 +174,23 @@ export default function TeacherSubjectDetailPage() {
       setError(err.message);
     } finally {
       setLoadingStudents(false);
+    }
+  };
+
+  const fetchBatchProgress = async () => {
+    setLoadingBatch(true);
+    try {
+      const token = localStorage.getItem("teacher_token");
+      const res = await fetch(`/api/teacher-dashboard/allotment/${subjectInstanceId}/batch-progress`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to fetch batch progress");
+      setBatchStudents(data.students);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingBatch(false);
     }
   };
 
@@ -432,6 +451,19 @@ export default function TeacherSubjectDetailPage() {
                 <Plus className="w-4 h-4 inline mr-2" />
                 Add Practical
               </button>
+              <button
+                onClick={async () => {
+                  setActiveTab("students");
+                  await fetchBatchProgress();
+                }}
+                className={`px-5 py-2.5 rounded-xl font-medium transition-all duration-200 ${activeTab === "students"
+                  ? "bg-gradient-to-r from-orange-500 to-pink-500 text-white shadow-lg shadow-orange-200"
+                  : "text-gray-600 hover:bg-orange-50"
+                  }`}
+              >
+                <Users className="w-4 h-4 inline mr-2" />
+                All Students
+              </button>
             </div>
             <div className="flex gap-2">
               <Button
@@ -624,81 +656,107 @@ export default function TeacherSubjectDetailPage() {
                           </div>
                         </div>
 
-                        {/* Submitted Students */}
-                        <div className="mb-8">
-                          <h3 className="text-lg font-semibold mb-4 text-green-700 flex items-center gap-2">
-                            <CheckCircle2 className="w-5 h-5" />
-                            Submitted Students ({practicalStudents.submitted.length})
-                          </h3>
-                          {practicalStudents.submitted.length === 0 ? (
-                            <p className="text-gray-500 bg-gray-50 rounded-xl p-6 text-center">No submissions yet.</p>
-                          ) : (
-                            <div className="space-y-3">
-                              {practicalStudents.submitted.map((student: any) => (
-                                <div
-                                  key={student.student_id}
-                                  className="border border-green-200 rounded-xl p-4 bg-gradient-to-r from-green-50 to-emerald-50 hover:shadow-md transition-shadow"
-                                >
-                                  <div className="flex justify-between items-center">
-                                    <div>
-                                      <p className="font-semibold text-gray-800">{student.name}</p>
-                                      <p className="text-sm text-gray-600">
-                                        PRN: {student.prn} | Roll: {student.roll}
-                                      </p>
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Submitted: {new Date(student.submitted_at).toLocaleString()}
-                                      </p>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-2">
-                                      <span
-                                        className={`px-3 py-1 rounded-full text-xs font-semibold ${student.execution_status === "success"
-                                          ? "bg-green-200 text-green-800"
-                                          : "bg-red-200 text-red-800"
-                                          }`}
-                                      >
-                                        {student.execution_status}
-                                      </span>
-                                      <Button
-                                        onClick={() => router.push(`/dashboard/teacher/submissions/${student.submission_id}`)}
-                                        size="sm"
-                                        className="bg-gradient-to-r from-orange-500 to-pink-500 hover:from-orange-600 hover:to-pink-600 text-white"
-                                      >
-                                        <Eye className="w-3.5 h-3.5 mr-1.5" />
-                                        View Code
-                                      </Button>
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
+                        {/* Unified Modern List View */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-orange-100 overflow-hidden mt-8">
+                          <div className="px-6 py-4 border-b border-orange-100 bg-gray-50/50 flex items-center justify-between">
+                            <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                              <Users className="w-5 h-5 text-orange-500" />
+                              Student Submissions
+                            </h3>
+                            <div className="text-sm font-medium text-gray-500">
+                              {practicalStudents.stats.submitted_count} of {practicalStudents.stats.total_students} Submitted
                             </div>
-                          )}
-                        </div>
+                          </div>
+                          
+                          <div className="divide-y divide-gray-100">
+                            {/* Table Header */}
+                            <div className="grid grid-cols-12 gap-4 px-6 py-3 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                              <div className="col-span-1 border-r border-gray-200">Roll No</div>
+                              <div className="col-span-4 border-r border-gray-200">Student Name</div>
+                              <div className="col-span-3 border-r border-gray-200">PRN</div>
+                              <div className="col-span-2 border-r border-gray-200 text-center">Status</div>
+                              <div className="col-span-2 text-center">Action</div>
+                            </div>
 
-                        {/* Not Submitted Students */}
-                        <div>
-                          <h3 className="text-lg font-semibold mb-4 text-red-700 flex items-center gap-2">
-                            <XCircle className="w-5 h-5" />
-                            Not Submitted ({practicalStudents.not_submitted.length})
-                          </h3>
-                          {practicalStudents.not_submitted.length === 0 ? (
-                            <div className="text-center py-8 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl">
-                              <p className="text-green-600 font-medium">🎉 All students have submitted!</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {practicalStudents.not_submitted.map((student: any) => (
-                                <div
-                                  key={student.student_id}
-                                  className="border border-red-200 rounded-xl p-4 bg-gradient-to-r from-red-50 to-rose-50"
-                                >
-                                  <p className="font-semibold text-gray-800">{student.name}</p>
-                                  <p className="text-sm text-gray-600">
-                                    PRN: {student.prn} | Roll: {student.roll}
+                            {/* Submitted Students Segment */}
+                            {practicalStudents.submitted.map((student: any) => (
+                              <div
+                                key={student.student_id}
+                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-orange-50/30 transition-colors"
+                              >
+                                <div className="col-span-1 text-sm font-bold text-gray-700">
+                                  {student.roll_no || "-"}
+                                </div>
+                                <div className="col-span-4">
+                                  <p className="text-sm font-bold text-gray-800">{student.full_name}</p>
+                                  <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+                                    {new Date(student.submitted_at).toLocaleString()}
                                   </p>
                                 </div>
-                              ))}
-                            </div>
-                          )}
+                                <div className="col-span-3 text-sm font-medium text-gray-600 font-mono">
+                                  {student.prn}
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                  <div className="flex flex-col items-center gap-1">
+                                    <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase bg-green-100/80 text-green-700 border border-green-200/50 flex items-center gap-1.5 shadow-sm">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                                      Submitted
+                                    </span>
+                                    {student.execution_status && (
+                                      <span className={`text-[9px] font-bold uppercase tracking-wider opacity-80 ${student.execution_status === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+                                        {student.execution_status}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                  <Button
+                                    onClick={() => router.push(`/dashboard/teacher/submissions/${student.submission_id}`)}
+                                    size="sm"
+                                    className="h-8 bg-black hover:bg-gray-800 text-white rounded-lg px-4 text-xs shadow-md group"
+                                  >
+                                    <Eye className="w-3 h-3 mr-1.5 group-hover:scale-110 transition-transform" />
+                                    View
+                                  </Button>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Not Submitted Students Segment */}
+                            {practicalStudents.not_submitted.map((student: any, idx: number) => (
+                              <div
+                                key={student.student_id || student.id || `not-sub-${idx}`}
+                                className="grid grid-cols-12 gap-4 px-6 py-4 items-center bg-gray-50/20 hover:bg-red-50/30 transition-colors opacity-80"
+                              >
+                                <div className="col-span-1 text-sm font-medium text-gray-500">
+                                  {student.roll_no || "-"}
+                                </div>
+                                <div className="col-span-4">
+                                  <p className="text-sm font-medium text-gray-700">{student.full_name}</p>
+                                </div>
+                                <div className="col-span-3 text-sm font-medium text-gray-500 font-mono">
+                                  {student.prn}
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                  <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest uppercase bg-red-50 text-red-600 border border-red-100 flex items-center gap-1.5">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-400 mt-[-1px]"></div>
+                                    Pending
+                                  </span>
+                                </div>
+                                <div className="col-span-2 flex justify-center">
+                                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+                                    Awaiting Action
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+
+                            {practicalStudents.submitted.length === 0 && practicalStudents.not_submitted.length === 0 && (
+                              <div className="p-8 text-center text-gray-500 font-medium">
+                                No students found for this practical phase.
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ) : (
@@ -825,6 +883,73 @@ export default function TeacherSubjectDetailPage() {
                       Save PR-{selectedPr}
                     </Button>
                   </form>
+                )}
+              </div>
+            )}
+            {/* Students Progress Tab */}
+            {activeTab === "students" && (
+              <div className="animate-fade-in">
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                    <Users className="w-6 h-6 text-orange-500" />
+                    Overall Batch Progress
+                  </h2>
+                  <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-xl text-sm font-bold">
+                    Total Students: {batchStudents.length}
+                  </div>
+                </div>
+
+                {loadingBatch ? (
+                  <div className="flex flex-col items-center justify-center py-20 gap-4">
+                    <RefreshCw className="w-10 h-10 text-orange-500 animate-spin" />
+                    <p className="text-gray-500 font-medium tracking-tight">Synchronizing student records...</p>
+                  </div>
+                ) : batchStudents.length === 0 ? (
+                  <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
+                    <Users className="w-16 h-16 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-500 font-bold">No students registered in this batch yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-2xl border border-orange-100">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-orange-50/50">
+                          <th className="px-6 py-4 text-xs font-black text-orange-600 uppercase tracking-widest">Roll NO</th>
+                          <th className="px-6 py-4 text-xs font-black text-orange-600 uppercase tracking-widest">Student Name</th>
+                          <th className="px-6 py-4 text-xs font-black text-orange-600 uppercase tracking-widest">PRN</th>
+                          <th className="px-6 py-4 text-xs font-black text-orange-600 uppercase tracking-widest">Progress</th>
+                          <th className="px-6 py-4 text-xs font-black text-orange-600 uppercase tracking-widest text-right">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {batchStudents.map((student) => (
+                          <tr key={student.id} className="border-t border-orange-50 hover:bg-orange-50/20 transition-colors">
+                            <td className="px-6 py-4 font-black text-slate-400">{student.roll || '--'}</td>
+                            <td className="px-6 py-4 font-bold text-slate-900">{student.name}</td>
+                            <td className="px-6 py-4 text-sm text-slate-500 font-medium">{student.prn}</td>
+                            <td className="px-6 py-4">
+                              <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-orange-500 to-pink-500 transition-all duration-500"
+                                  style={{ width: `${(student.submitted_count / (student.total_practicals || 1)) * 100}%` }}
+                                />
+                              </div>
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1.5">
+                                {student.submitted_count} / {student.total_practicals} Practicals
+                              </p>
+                            </td>
+                            <td className="px-6 py-4 text-right">
+                              {student.submitted_count === student.total_practicals ? (
+                                <span className="bg-emerald-100 text-emerald-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">Completed</span>
+                              ) : (
+                                <span className="bg-amber-100 text-amber-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">In Progress</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )}

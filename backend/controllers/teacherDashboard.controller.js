@@ -26,7 +26,7 @@ export const getPracticalStudents = async (req, res) => {
     // 1. Get allotment and master practical to verify ownership
     const { data: allotment, error: allotError } = await supabaseAdmin
       .from("allotments")
-      .select("*, subjects:subject_id!master_subjects(*)")
+      .select("*, subjects:master_subjects(*)")
       .eq("id", allotmentId)
       .single();
 
@@ -207,7 +207,7 @@ export const getSubjectInstancePracticals = async (req, res) => {
         batch_name,
         teacher_id,
         subject_id,
-        subjects:subject_id!master_subjects (
+        subjects:master_subjects (
           id,
           name,
           course_code
@@ -286,6 +286,106 @@ export const getSubjectInstancePracticals = async (req, res) => {
     });
   } catch (err) {
     console.error("Dashboard error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * TEACHER: Get progress of all students in a batch for all practicals
+ * GET /api/teacher-dashboard/allotment/:allotmentId/batch-progress
+ */
+export const getBatchProgress = async (req, res) => {
+  try {
+    const { allotmentId } = req.params;
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({ error: "Authorization token missing" });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: authError } = await supabase.auth.getUser(token);
+
+    if (authError || !userData.user) {
+      return res.status(401).json({ error: "Invalid token" });
+    }
+
+    const teacherId = userData.user.id;
+
+    // 1. Verify allotment
+    const { data: allotment, error: allotError } = await supabaseAdmin
+      .from("allotments")
+      .select("*, subjects:master_subjects(*)")
+      .eq("id", allotmentId)
+      .single();
+
+    if (allotError || !allotment) {
+      return res.status(404).json({ error: "Allotment not found" });
+    }
+
+    if (allotment.teacher_id !== teacherId) {
+      return res.status(403).json({ error: "Unauthorized" });
+    }
+
+    // 2. Get all students in this batch
+    const { data: students, error: studentsError } = await supabaseAdmin
+      .from("students")
+      .select("id, full_name, prn, roll_no")
+      .eq("semester", allotment.semester)
+      .eq("batch_name", allotment.batch_name)
+      .order("roll_no");
+
+    if (studentsError) throw studentsError;
+
+    // 3. Get all practicals for this subject
+    const { data: practicals, error: prError } = await supabaseAdmin
+      .from("master_practicals")
+      .select("id, pr_no, title")
+      .eq("master_subject_id", allotment.subject_id)
+      .order("pr_no");
+
+    if (prError) throw prError;
+
+    // 4. Get all submissions for these students and these practicals
+    const studentIds = (students || []).map(s => s.id);
+    const practicalIds = (practicals || []).map(p => p.id);
+
+    const { data: submissions, error: subError } = await supabaseAdmin
+      .from("submissions")
+      .select("student_id, practical_id, execution_status")
+      .in("student_id", studentIds)
+      .in("practical_id", practicalIds);
+
+    if (subError) throw subError;
+
+    // 5. Format data
+    const progress = (students || []).map(student => {
+      const studentSubmissions = (submissions || []).filter(s => s.student_id === student.id);
+      return {
+        id: student.id,
+        name: student.full_name,
+        prn: student.prn,
+        roll: student.roll_no,
+        submitted_count: studentSubmissions.length,
+        total_practicals: practicals.length,
+        submissions: (practicals || []).map(p => {
+          const sub = studentSubmissions.find(s => s.practical_id === p.id);
+          return {
+            practical_id: p.id,
+            pr_no: p.pr_no,
+            status: sub ? (sub.execution_status || "submitted") : "pending"
+          };
+        })
+      };
+    });
+
+    res.json({
+      allotment,
+      practicals,
+      students: progress
+    });
+  } catch (err) {
+    console.error("Batch Progress Error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };

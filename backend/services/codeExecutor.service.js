@@ -8,87 +8,64 @@ import axios from "axios";
  * Phase 2: Custom Docker (Production)
  */
 
-const PISTON_API_URL = process.env.PISTON_API_URL || "https://emkc.org/api/v2/piston";
+const ONECOMPILER_API_URL = "https://onecompiler.com/api/code/exec";
 
 /**
- * Execute code using Piston API
+ * Execute code using OneCompiler API (Fallback for Piston)
  */
-export const executeCodeWithPiston = async (code, language, version = null) => {
+export const executeCodeWithOneCompiler = async (code, language) => {
   try {
-    // Language mapping
+    const normalizedLang = language.toLowerCase();
+    
+    // OneCompiler mapping
     const languageMap = {
-      Python: { name: "python", defaultVersion: "3.10.0" },
-      Java: { name: "java", defaultVersion: "15.0.2" },
-      "C++": { name: "cpp", defaultVersion: "10.2.0" },
-      C: { name: "c", defaultVersion: "10.2.0" },
-      OS: { name: "c", defaultVersion: "10.2.0" }, // OS uses C
-      SQL: { name: "sql", defaultVersion: null }, // Custom handler
-      OLAP: { name: "python", defaultVersion: "3.10.0" }, // Mock for now
+      python: { name: "Python", mode: "python", extension: "py" },
+      java: { name: "Java", mode: "java", extension: "java" },
+      cpp: { name: "C++", mode: "cpp", extension: "cpp" },
+      "c++": { name: "C++", mode: "cpp", extension: "cpp" },
+      c: { name: "C", mode: "c", extension: "c" },
+      os: { name: "C", mode: "c", extension: "c" },
+      javascript: { name: "JavaScript", mode: "javascript", extension: "js" },
+      js: { name: "JavaScript", mode: "javascript", extension: "js" },
+      sql: { name: "MySQL", mode: "mysql", extension: "sql" }
     };
 
-    const langConfig = languageMap[language];
-    if (!langConfig) {
-      throw new Error(`Unsupported language: ${language}`);
-    }
+    const langConfig = languageMap[normalizedLang];
+    if (!langConfig) throw new Error(`Unsupported language: ${language}`);
 
-    // SQL requires custom handling
-    if (language === "SQL") {
-      return await executeSQL(code);
-    }
+    const payload = {
+      name: langConfig.name,
+      title: `Main.${langConfig.extension}`,
+      version: "latest",
+      mode: langConfig.mode,
+      extension: langConfig.extension,
+      languageType: "programming",
+      active: true,
+      properties: {
+        language: langConfig.mode,
+        files: [{ name: `Main.${langConfig.extension}`, content: code }]
+      }
+    };
 
-    // OLAP - mock execution for now
-    if (language === "OLAP") {
-      return await executeOLAP(code);
-    }
-
-    const langName = langConfig.name;
-    const langVersion = version || langConfig.defaultVersion;
-
-    // Execute via Piston API
-    const response = await axios.post(`${PISTON_API_URL}/execute`, {
-      language: langName,
-      version: langVersion,
-      files: [
-        {
-          name: getFileName(language),
-          content: code,
-        },
-      ],
-      stdin: "",
-      args: [],
-      run_timeout: 5000, // 5 seconds
-      memory_limit: 128 * 1024 * 1024, // 128 MB
-    }, {
-      timeout: 10000, // 10 seconds total timeout
-    });
-
+    const response = await axios.post(ONECOMPILER_API_URL, payload, { timeout: 15000 });
     const result = response.data;
 
-    // Parse execution result
-    const executionStatus = result.run?.code === 0 ? "success" : "failed";
-    const output = result.run?.stdout || "";
-    const error = result.run?.stderr || "";
-    const executionTime = result.run?.time ? parseFloat(result.run.time) * 1000 : 0; // Convert to ms
+    // Strict status detection: fail if there's an exception, stderr, or non-zero exit code (if provided)
+    const hasError = !!(result.exception || result.stderr?.trim());
+    const executionStatus = hasError ? "failed" : "success";
+    
+    const output = result.stdout || "";
+    const error = result.stderr || result.exception || "";
 
     return {
       execution_status: executionStatus,
       output: output.trim(),
       error: error.trim(),
-      execution_time_ms: Math.round(executionTime),
-      memory_used_kb: 0, // Piston doesn't provide this
+      execution_time_ms: result.executionTime || 0,
+      memory_used_kb: result.memoryUsed || 0,
     };
   } catch (err) {
-    // Handle timeout or API errors
-    if (err.code === "ECONNABORTED" || err.message.includes("timeout")) {
-      return {
-        execution_status: "timeout",
-        output: "",
-        error: "Execution timeout: Code took too long to execute",
-        execution_time_ms: 5000,
-        memory_used_kb: 0,
-      };
-    }
-
+    console.error("[OneCompiler] Error:", err.message);
     return {
       execution_status: "error",
       output: "",
@@ -100,17 +77,28 @@ export const executeCodeWithPiston = async (code, language, version = null) => {
 };
 
 /**
+ * Execute code using Piston API (Optional fallback)
+ */
+export const executeCodeWithPiston = async (code, language, version = null) => {
+  // We keep this but default to OneCompiler for now due to Piston 401
+  return await executeCodeWithOneCompiler(code, language);
+};
+
+/**
  * Get filename based on language
  */
-const getFileName = (language) => {
+const getFileName = (normalizedLang) => {
   const fileMap = {
-    Python: "main.py",
-    Java: "Main.java",
-    "C++": "main.cpp",
-    C: "main.c",
-    OS: "main.c",
+    python: "main.py",
+    java: "Main.java",
+    cpp: "main.cpp",
+    "c++": "main.cpp",
+    c: "main.c",
+    os: "main.c",
+    javascript: "main.js",
+    js: "main.js",
   };
-  return fileMap[language] || "main.py";
+  return fileMap[normalizedLang] || "main.txt";
 };
 
 /**

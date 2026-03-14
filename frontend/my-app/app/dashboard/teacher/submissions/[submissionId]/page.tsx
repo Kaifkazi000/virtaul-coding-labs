@@ -33,6 +33,10 @@ export default function TeacherSubmissionDetailPage() {
   const [isComparing, setIsComparing] = useState(false);
   const [matchData, setMatchData] = useState<any>(null);
   const [loadingMatch, setLoadingMatch] = useState(false);
+  const [showCheckModal, setShowCheckModal] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [feedback, setFeedback] = useState("");
+  const [score, setScore] = useState(10);
 
   useEffect(() => {
     const fetchSubmission = async () => {
@@ -94,6 +98,32 @@ export default function TeacherSubmissionDetailPage() {
       setError("Error connecting to server for comparison");
     } finally {
       setLoadingMatch(false);
+    }
+  };
+
+  const handleCheck = async () => {
+    setChecking(true);
+    try {
+      const token = localStorage.getItem("teacher_token");
+      const res = await fetch(`/api/practicals/submission/${submissionId}/check`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ score, feedback })
+      });
+
+      if (!res.ok) throw new Error("Failed to mark as checked");
+
+      const json = await res.json();
+      setData(prev => prev ? { ...prev, submission: json.submission } : null);
+      setShowCheckModal(false);
+      alert("Submission marked as checked successfully!");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -162,6 +192,18 @@ export default function TeacherSubmissionDetailPage() {
               <CheckCircle2 className="w-5 h-5" />
               <span className="text-sm font-black uppercase tracking-widest">{submission.execution_status}</span>
             </div>
+            {submission.status !== 'checked' ? (
+              <button
+                onClick={() => setShowCheckModal(true)}
+                className="bg-black text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-black/20"
+              >
+                Check Solution
+              </button>
+            ) : (
+              <div className="bg-emerald-500 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Checked
+              </div>
+            )}
           </div>
         </div>
 
@@ -260,7 +302,7 @@ export default function TeacherSubmissionDetailPage() {
                   <User className="w-3 h-3" /> Student Profile
                 </h3>
                 <div className="space-y-4">
-                  <InfoItem label="Roll Number" value={student.roll} />
+                  <InfoItem label="Roll Number" value={student.roll_no || student.roll} />
                   <InfoItem label="PRN Number" value={student.prn} />
                   <InfoItem label="Email" value={student.email} />
                   <InfoItem label="Submission Date" value={new Date(submission.submitted_at).toLocaleDateString()} />
@@ -295,6 +337,58 @@ export default function TeacherSubmissionDetailPage() {
                     <pre className="text-green-400 whitespace-pre-wrap relative z-10">{submission.execution_output || 'Process finished (exit code 0)'}</pre>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Check Modal */}
+        {showCheckModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/20 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 p-10 space-y-8 animate-in zoom-in-95 duration-300">
+              <div className="text-center space-y-2">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Evaluate Submission</h3>
+                <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Mark as Checked</h2>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Score (Max 10)</label>
+                  <input
+                    type="number"
+                    max={10}
+                    min={0}
+                    value={score}
+                    onChange={(e) => setScore(Number(e.target.value))}
+                    className="w-full bg-gray-50 border-gray-100 rounded-2xl px-6 py-4 font-bold text-lg focus:ring-2 focus:ring-black outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Teacher Feedback</label>
+                  <textarea
+                    placeholder="Well done! Logic is clean..."
+                    value={feedback}
+                    onChange={(e) => setFeedback(e.target.value)}
+                    className="w-full bg-gray-50 border-gray-100 rounded-2xl px-6 py-4 font-medium text-sm focus:ring-2 focus:ring-black outline-none transition-all min-h-[120px] resize-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowCheckModal(false)}
+                  className="flex-1 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-gray-400 hover:text-black transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCheck}
+                  disabled={checking}
+                  className="flex-1 bg-black text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-black/20 disabled:opacity-50"
+                >
+                  {checking ? 'Submitting...' : 'Confirm'}
+                </button>
               </div>
             </div>
           </div>

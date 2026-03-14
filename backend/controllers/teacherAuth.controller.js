@@ -22,7 +22,7 @@ export const teacherLogin = async (req, res) => {
     // 2️⃣ Check teacher exists in teachers table using ADMIN client
     const { data: teacher, error: teacherError } = await supabaseAdmin
       .from("teachers")
-      .select("name, email, department, role")
+      .select("id, auth_user_id, name, email, department, role")
       .eq("auth_user_id", data.user.id)
       .single();
 

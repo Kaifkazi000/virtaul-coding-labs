@@ -1,38 +1,6 @@
 import { supabase, supabaseAdmin } from "../config/supabase.js";
 import { checkIntegrity, analyzeLogic } from "../services/logicEngine/index.js";
-
-/**
- * MOCK CODE EXECUTION
- */
-const executeCode = async (code, language) => {
-  if (!code || code.trim().length === 0) {
-    return {
-      success: false,
-      output: null,
-      error: "Code cannot be empty",
-    };
-  }
-
-  if (language === "Python") {
-    if (code.includes("print(") || code.includes("def ")) {
-      return { success: true, output: "Code executed successfully (mock)", error: null };
-    }
-  }
-
-  if (language === "Java") {
-    if (code.includes("public class") || code.includes("System.out.println")) {
-      return { success: true, output: "Code executed successfully (mock)", error: null };
-    }
-  }
-
-  if (language === "SQL") {
-    if (code.toUpperCase().includes("SELECT") || code.toUpperCase().includes("INSERT")) {
-      return { success: true, output: "Query executed successfully (mock)", error: null };
-    }
-  }
-
-  return { success: true, output: "Code executed successfully (mock)", error: null };
-};
+import { executeCode } from "../services/codeExecutor.service.js";
 
 /**
  * EXECUTE CODE
@@ -55,12 +23,13 @@ export const executeCodeForPractical = async (req, res) => {
     const result = await executeCode(code, language);
 
     res.json({
-      execution_status: result.success ? "success" : "failed",
+      execution_status: result.execution_status,
       output: result.output,
       error: result.error,
     });
   } catch (err) {
-    res.status(500).json({ error: "Server error" });
+    console.error("[SubmissionController] Execute Error:", err);
+    res.status(500).json({ error: "Server error during code execution" });
   }
 };
 
@@ -70,53 +39,105 @@ export const executeCodeForPractical = async (req, res) => {
 export const submitCode = async (req, res) => {
   try {
     const { code, language, practical_id, execution_status, output } = req.body;
+    console.log(`[Submission] Incoming request for practical: ${practical_id}, language: ${language}`);
 
     if (execution_status !== "success") {
       return res.status(400).json({ error: "Execute code successfully first" });
     }
 
     const token = req.headers.authorization?.replace("Bearer ", "");
-    const { data: userData } = await supabase.auth.getUser(token);
+    if (!token) return res.status(401).json({ error: "Missing authorization token" });
+
+    const { data: userData, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !userData?.user) {
+      return res.status(401).json({ error: "Invalid or expired token" });
+    }
     const studentAuthId = userData.user.id;
 
-    // 1. Get Student and Practical/Subject details
-    const { data: student } = await supabaseAdmin
+    // 1. Get Student details
+    const { data: student, error: studentError } = await supabaseAdmin
       .from("students")
-      .select("id, semester")
+      .select("id, semester, batch_name")
       .eq("auth_user_id", studentAuthId)
       .single();
 
-    const { data: practical } = await supabaseAdmin
+    if (studentError || !student) {
+      console.error("[Submission] Student profile not found for auth_id:", studentAuthId);
+      return res.status(404).json({ error: "Student profile not found. Please contact HOD." });
+    }
+
+    // 2. Get Practical details - Using ID directly
+    console.log(`[Submission] Fetching practical data for ID: ${practical_id}`);
+    const { data: practical, error: practicalError } = await supabaseAdmin
       .from("master_practicals")
-      .select("id, subject_instance_id, practical_no, template_code")
+      .select("id, master_subject_id, pr_no, sample_code, language")
       .eq("id", practical_id)
       .single();
 
-    // 2. Fetch existing submissions for comparison (same scope)
+    if (practicalError || !practical) {
+      console.error("[Submission] Practical NOT found in DB. ID:", practical_id, "Error:", practicalError);
+      return res.status(404).json({ error: "Practical not found in system." });
+    }
+
+    // 3. Strict Backend Validation: Language and Success status
+    const reqLang = String(language || "").trim().toLowerCase();
+    const targetLang = String(practical.language || "").trim().toLowerCase();
+    
+    // 3. Find target Subject Instance / Allotment ID
+    console.log(`[Submission] Resolving Subject Instance (Allotment) for batch ${student.batch_name}, subject ${practical.master_subject_id}`);
+    const { data: allotment, error: allotError } = await supabaseAdmin
+      .from("allotments")
+      .select("id")
+      .eq("subject_id", practical.master_subject_id)
+      .eq("semester", student.semester)
+      .eq("batch_name", student.batch_name)
+      .single();
+
+    if (allotError || !allotment) {
+      console.warn(`[Submission] No configured subject instance for student ${studentAuthId}`);
+      return res.status(403).json({ error: "No subject allotment found for your batch." });
+    }
+
+    const aliases = {
+      js: "javascript",
+      javascript: "javascript",
+      py: "python",
+      python: "python",
+      cpp: "c++",
+      "c++": "c++"
+    };
+
+    const normalizedReq = aliases[reqLang] || reqLang;
+    const normalizedTarget = aliases[targetLang] || targetLang;
+
+    if (normalizedReq !== normalizedTarget) {
+      console.warn(`[Submission] Language mismatch: Got ${normalizedReq}, Expected ${normalizedTarget}`);
+      return res.status(400).json({ 
+        error: `Submission blocked: Language mismatch. Expected ${practical.language}, but got ${language}.` 
+      });
+    }
+
+    // 4. Fetch existing submissions for comparison (same scope)
     const { data: existingSubmissions } = await supabaseAdmin
       .from("submissions")
       .select("id, code, language")
-      .eq("subject_instance_id", practical.subject_instance_id)
-      .eq("practical_no", practical.practical_no)
+      .eq("practical_id", practical_id)
       .neq("student_id", student.id); // Exclude current student
 
-    console.log(`[AI Logic] Found ${existingSubmissions?.length || 0} other submissions to compare against for PR-${practical.practical_no}`);
-
-    // 3. Run AI Logic Integrity Check
+    // 5. Run AI Logic Integrity Check
     const integrityResult = checkIntegrity(
       code,
       language,
       existingSubmissions || [],
-      practical.template_code
+      practical.sample_code
     );
 
-    console.log(`[AI Logic] Result for PR-${practical.practical_no}:`, {
+    console.log(`[AI Logic] PR-${practical.pr_no} Result:`, {
       score: integrityResult.similarityScore,
-      flagged: integrityResult.flagged,
-      tokens: integrityResult.logicHash?.length || 0
+      flagged: integrityResult.flagged
     });
 
-    // 4. Save or Update Submission
+    // 6. Save or Update Submission
     const { data: existing } = await supabaseAdmin
       .from("submissions")
       .select("id")
@@ -126,10 +147,9 @@ export const submitCode = async (req, res) => {
 
     const submissionData = {
       student_id: student.id,
-      subject_instance_id: practical.subject_instance_id,
+      subject_instance_id: allotment.id,
       practical_id,
-      practical_no: practical.practical_no,
-      semester: student.semester,
+      pr_no: practical.pr_no,
       code,
       language,
       execution_status,
@@ -138,11 +158,10 @@ export const submitCode = async (req, res) => {
       similarity_score: integrityResult.similarityScore,
       flagged: integrityResult.flagged,
       matching_submission_id: integrityResult.matchingSubmissionId,
-      updated_at: new Date().toISOString(),
+      submitted_at: new Date().toISOString(),
     };
 
     let resultSubmission;
-
     if (existing) {
       const { data } = await supabaseAdmin
         .from("submissions")
@@ -154,10 +173,7 @@ export const submitCode = async (req, res) => {
     } else {
       const { data } = await supabaseAdmin
         .from("submissions")
-        .insert({
-          ...submissionData,
-          created_at: new Date().toISOString(),
-        })
+        .insert({ ...submissionData, submitted_at: new Date().toISOString() })
         .select()
         .single();
       resultSubmission = data;
@@ -169,8 +185,8 @@ export const submitCode = async (req, res) => {
       integrity: integrityResult,
     });
   } catch (err) {
-    console.error("Submission error:", err);
-    res.status(500).json({ error: "Server error" });
+    console.error("[Submission] Fatal Error:", err);
+    res.status(500).json({ error: "Internal server error during submission" });
   }
 };
 

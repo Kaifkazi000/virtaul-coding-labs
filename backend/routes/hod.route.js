@@ -8,6 +8,7 @@ import {
     manualRegisterStudent,
     bulkRegisterStudents,
     promoteBatch,
+    promoteDepartment,
     createMasterPractical,
     getMasterPracticals,
     deleteMasterSubject,
@@ -18,7 +19,10 @@ import {
     registerTeacher,
     deleteTeacher,
     deleteAllotment,
-    searchAlumni
+    searchAlumni,
+    getStudentHistory,
+    getAvailableBatches,
+    rebalanceCohortBatches
 } from "../controllers/hod.controller.js";
 import {
     login
@@ -43,6 +47,7 @@ router.post("/master-practicals", createMasterPractical);
 router.post("/register-student", manualRegisterStudent);
 router.post("/bulk-register-students", bulkRegisterStudents);
 router.post("/promote-batch", promoteBatch);
+router.post("/promote-department", promoteDepartment);
 router.post("/register-teacher", registerTeacher);
 
 // Delete routes
@@ -55,7 +60,8 @@ router.delete("/allotments/:id", deleteAllotment);
 // Allotments
 router.get("/allotments", getSubjectAllotments);
 
-// Alumni
+router.get("/student-history/:prn", getStudentHistory);
 router.get("/alumni", searchAlumni);
+router.get("/available-batches", getAvailableBatches);
 
 export default router;

@@ -30,6 +30,7 @@ export default function StudentPracticalDetailPage() {
   const [executionResult, setExecutionResult] = useState<any>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isLocked, setIsLocked] = useState(false);
 
   useEffect(() => {
     const storedStudent = localStorage.getItem("student_data");
@@ -47,7 +48,8 @@ export default function StudentPracticalDetailPage() {
       }
 
       try {
-        // Fetch practical (this already returns master_practical content in my refactored backend)
+        console.log("Loading practical:", practicalId);
+        // Fetch practical
         const p = await fetch(`/api/practicals/${practicalId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -58,13 +60,23 @@ export default function StudentPracticalDetailPage() {
         setPractical(pData);
 
         // Check if unlocked for student's batch
-        // (This would ideally be passed from the list page, but let's re-verify here)
+        console.log("Checking unlock status for:", practicalId);
         const uRes = await fetch(`/api/execution/unlock-status/${practicalId}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
+        
+        if (!uRes.ok) {
+           // If API fails, default to locked to be safe
+           console.error("Unlock API failed:", uRes.status);
+           setIsLocked(true);
+           return;
+        }
+
         const uData = await uRes.json();
-        if (!uData.is_unlocked) {
-          router.push("/dashboard/student");
+        console.log("Unlock result:", uData);
+        
+        if (uData.is_unlocked === false) {
+          setIsLocked(true);
           return;
         }
 
@@ -180,6 +192,29 @@ export default function StudentPracticalDetailPage() {
     </div>
   );
 
+  if (isLocked) {
+    return (
+      <div className="min-h-screen bg-[#F8F9FA]">
+        <StudentNavbar studentName={student?.name} />
+        <main className="max-w-7xl mx-auto px-4 py-32 flex flex-col items-center justify-center text-center">
+          <div className="w-24 h-24 bg-rose-50 rounded-full flex items-center justify-center mb-8 border border-rose-100">
+            <AlertCircle className="w-12 h-12 text-rose-500" />
+          </div>
+          <h1 className="text-4xl font-black text-black tracking-tight mb-4">Practical is Locked</h1>
+          <p className="text-lg text-gray-500 font-medium max-w-md mb-8">
+            This practical has not been unlocked for your batch yet. Please check back later or contact your teacher.
+          </p>
+          <button
+            onClick={() => router.push("/dashboard/student")}
+            className="bg-black text-white px-8 py-3 rounded-2xl font-black uppercase tracking-widest hover:bg-gray-800 transition-all active:scale-95"
+          >
+            Return to Dashboard
+          </button>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#F8F9FA]">
       <StudentNavbar studentName={student?.name} />
@@ -229,7 +264,7 @@ export default function StudentPracticalDetailPage() {
 
                 <div className="relative z-10">
                   <span className="inline-block px-3 py-1 bg-black text-white rounded-full text-[10px] font-black uppercase tracking-widest mb-4">
-                    PR-{practical.pr_no}
+                    PR-{practical?.pr_no || "--"}
                   </span>
 
                   <h1 className="text-4xl font-black text-black tracking-tighter leading-tight mb-8">

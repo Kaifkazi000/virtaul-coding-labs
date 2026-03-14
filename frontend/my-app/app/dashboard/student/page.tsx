@@ -11,6 +11,7 @@ import {
   Mail,
   Hash,
   Building2,
+  Users,
   CheckCircle2,
   AlertCircle,
   Settings,
@@ -86,7 +87,7 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-white">
       <StudentNavbar
-        studentName={student.name}
+        studentName={student.full_name || student.name}
         onSettingsClick={() => setShowPasswordModal(true)}
       />
 
@@ -103,7 +104,7 @@ export default function StudentDashboard() {
             Dashboard
           </h1>
           <p className="text-lg text-gray-600 mt-2 font-medium">
-            Welcome back, <span className="text-black font-bold">{student.name}</span>. 👋
+            Welcome back, <span className="text-black font-bold">{student.full_name || student.name}</span>. 👋
           </p>
         </div>
 
@@ -116,7 +117,7 @@ export default function StudentDashboard() {
                   <UserIcon className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-black leading-tight">{student.name}</h3>
+                  <h3 className="text-xl font-black text-black leading-tight">{student.full_name || student.name}</h3>
                   <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">Student Profile</p>
                 </div>
               </div>
@@ -124,7 +125,8 @@ export default function StudentDashboard() {
               <div className="space-y-4">
                 <ProfileItem icon={<Mail className="w-4 h-4" />} label="Email" value={student.email} />
                 <ProfileItem icon={<Hash className="w-4 h-4" />} label="PRN" value={student.prn} />
-                <ProfileItem icon={<Hash className="w-4 h-4" />} label="Roll No" value={student.roll} />
+                <ProfileItem icon={<Hash className="w-4 h-4" />} label="Roll No" value={student.roll_no || student.roll} />
+                <ProfileItem icon={<Users className="w-4 h-4" />} label="Batch" value={student.batch_name} />
                 <ProfileItem icon={<Building2 className="w-4 h-4" />} label="Department" value={student.department} />
                 <ProfileItem icon={<Clock className="w-4 h-4" />} label="Semester" value={student.semester} />
               </div>
@@ -241,6 +243,15 @@ function SubjectCard({ subject, onClick }: { subject: any, onClick: () => void }
         <p className="text-sm font-bold text-gray-500 group-hover:text-gray-400 mt-2 tracking-wide uppercase">
           CODE: {subject.subject_code}
         </p>
+        <div className="mt-4 flex items-center gap-2 bg-gray-100/50 group-hover:bg-white/10 w-fit px-3 py-1.5 rounded-xl border border-gray-200/50 group-hover:border-white/20 transition-colors">
+          <div className="w-6 h-6 rounded-full bg-indigo-100 group-hover:bg-indigo-500/30 flex items-center justify-center border border-indigo-200 group-hover:border-indigo-400/30 shadow-sm">
+            <UserIcon className="w-3.5 h-3.5 text-indigo-600 group-hover:text-indigo-200" />
+          </div>
+          <div>
+            <p className="text-[9px] font-black text-gray-400 group-hover:text-gray-400 uppercase tracking-widest leading-none mb-0.5">Faculty</p>
+            <p className="text-xs font-bold text-gray-700 group-hover:text-gray-200 leading-none">Prof. {subject.teacher_name}</p>
+          </div>
+        </div>
       </div>
 
       <div className="relative z-10 mt-6 flex items-center gap-2 group-hover:text-white text-black font-bold text-sm">

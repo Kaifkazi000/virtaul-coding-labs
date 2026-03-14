@@ -64,6 +64,7 @@ export const getTeacherSubjectInstances = async (req, res) => {
       return res.status(401).json({ error: "Invalid token" });
 
     const teacherId = userData.user.id;
+    console.log(`[DEBUG] getTeacherSubjectInstances called for teacherId: ${teacherId}`);
 
     const { data, fetchError } = await supabaseAdmin
       .from("allotments")
@@ -72,7 +73,7 @@ export const getTeacherSubjectInstances = async (req, res) => {
         semester,
         batch_name,
         academic_year,
-        subjects:subject_id!master_subjects (
+        subjects:master_subjects (
           id,
           name,
           course_code
@@ -137,7 +138,8 @@ export const getStudentSubjectInstances = async (req, res) => {
         batch_name,
         semester,
         academic_year,
-        subjects:subject_id!master_subjects (
+        teacher_id,
+        subjects:master_subjects (
           id,
           name,
           course_code
@@ -152,14 +154,29 @@ export const getStudentSubjectInstances = async (req, res) => {
       return res.status(400).json({ error: fetchError.message });
     }
 
+    // 3. Fetch Teacher Details Manually to bypass schema foreign key errors
+    const teacherIds = [...new Set((allotments || []).map(a => a.teacher_id).filter(Boolean))];
+    let teacherMap = {};
+    if (teacherIds.length > 0) {
+      const { data: teachers } = await supabaseAdmin
+        .from("teachers")
+        .select("auth_user_id, name")
+        .in("auth_user_id", teacherIds);
+        
+      (teachers || []).forEach(t => {
+        teacherMap[t.auth_user_id] = t.name;
+      });
+    }
+
     // Map to a format compatible with existing frontend (using subject_instance style)
     const formattedData = (allotments || []).map(allot => ({
       id: allot.id, // Using allotment ID as instance ID
-      subject_name: allot.subjects.name,
-      subject_code: allot.subjects.course_code,
+      subject_name: allot.subjects?.name,
+      subject_code: allot.subjects?.course_code,
       semester: allot.semester,
       subject_id: allot.subject_id,
-      batch_name: allot.batch_name
+      batch_name: allot.batch_name,
+      teacher_name: teacherMap[allot.teacher_id] || "Unknown Teacher"
     }));
 
     res.json(formattedData);
