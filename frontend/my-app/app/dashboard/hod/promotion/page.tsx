@@ -49,18 +49,23 @@ export default function PromotionPage() {
                               }
                };
 
-               const handleAlumniSearch = async () => {
-                              if (!alumniSearch) return;
-                              try {
-                                             const res = await fetch(`/api/hod/alumni?prn=${alumniSearch}`);
-                                             if (!res.ok) throw new Error("Search failed");
-                                             const data = await res.json();
-                                             if (data) setAlumniData(data);
-                                             else setError("No alumni found with this PRN");
-                              } catch (err: any) {
-                                             setError(err.message);
-                              }
-               };
+                const handleAlumniSearch = async () => {
+                               if (!alumniSearch) return;
+                               setAlumniData(null);
+                               setError("");
+                               try {
+                                              const res = await fetch(`/api/hod/alumni?prn=${alumniSearch}`);
+                                              if (!res.ok) throw new Error("Search failed");
+                                              const data = await res.json();
+                                              if (data) {
+                                                             setAlumniData(data);
+                                              } else {
+                                                             setError("No alumni found with this PRN");
+                                              }
+                               } catch (err: any) {
+                                              setError(err.message);
+                               }
+                };
 
                return (
                               <div className="min-h-screen bg-[#F8FAFC]">
@@ -144,30 +149,40 @@ export default function PromotionPage() {
                                                                                                          </div>
                                                                                           </div>
 
-                                                                                          {alumniData && (
-                                                                                                         <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in slide-in-from-bottom-5 shadow-sm">
-                                                                                                                        <div className="space-y-6">
-                                                                                                                                       <div>
-                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Name</label>
-                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.full_name}</p>
-                                                                                                                                       </div>
-                                                                                                                                       <div>
-                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Permanent ID (PRN)</label>
-                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.prn}</p>
-                                                                                                                                       </div>
-                                                                                                                        </div>
-                                                                                                                        <div className="space-y-6">
-                                                                                                                                       <div>
-                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Graduation Year</label>
-                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.passout_year}</p>
-                                                                                                                                       </div>
-                                                                                                                                       <div>
-                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Admission Year</label>
-                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.admission_year}</p>
-                                                                                                                                       </div>
-                                                                                                                        </div>
-                                                                                                         </div>
-                                                                                          )}
+                                                                                                                                                                                     {alumniData && (
+                                                                                                          <div className="bg-white border border-slate-100 rounded-[2.5rem] p-10 animate-in fade-in slide-in-from-bottom-5 shadow-sm space-y-8">
+                                                                                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                                                                                                                        <div className="space-y-6">
+                                                                                                                                                       <div>
+                                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Name</label>
+                                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.full_name}</p>
+                                                                                                                                                       </div>
+                                                                                                                                                       <div>
+                                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Permanent ID (PRN)</label>
+                                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.prn}</p>
+                                                                                                                                                       </div>
+                                                                                                                                        </div>
+                                                                                                                                        <div className="space-y-6">
+                                                                                                                                                       <div>
+                                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Graduation Year</label>
+                                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.passout_year}</p>
+                                                                                                                                                       </div>
+                                                                                                                                                       <div>
+                                                                                                                                                                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Admission Year</label>
+                                                                                                                                                                      <p className="text-xl font-bold text-slate-900">{alumniData.admission_year}</p>
+                                                                                                                                                       </div>
+                                                                                                                                        </div>
+                                                                                                                         </div>
+                                                                                                                         <div className="pt-6 border-t border-slate-50">
+                                                                                                                                        <button 
+                                                                                                                                                       onClick={() => router.push(`/dashboard/hod/progress/${alumniData.prn}/record`)}
+                                                                                                                                                       className="w-full bg-slate-50 text-slate-900 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-50 hover:text-indigo-600 transition-all flex items-center justify-center gap-2 border border-slate-100"
+                                                                                                                                        >
+                                                                                                                                                       View Full Academic History <ArrowRight className="w-4 h-4" />
+                                                                                                                                        </button>
+                                                                                                                         </div>
+                                                                                                          </div>
+                                                                                           )}
                                                                            </div>
                                                             </div>
                                              </main>

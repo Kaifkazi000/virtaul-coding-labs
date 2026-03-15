@@ -157,11 +157,18 @@ export default function StudentTranscriptPage() {
               {student.full_name?.charAt(0)}
             </div>
             <div className="flex-1 text-center md:text-left">
-              <h2 className="text-3xl font-black text-slate-900 mb-2">{student.full_name}</h2>
+              <div className="flex items-center justify-center md:justify-start gap-4 mb-2">
+                <h2 className="text-3xl font-black text-slate-900">{student.full_name}</h2>
+                {student.status === 'graduated' && (
+                  <span className="bg-slate-900 text-white px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border border-slate-800">
+                    Graduated
+                  </span>
+                )}
+              </div>
               <div className="flex flex-wrap justify-center md:justify-start items-center gap-4 text-slate-500 text-xs font-bold uppercase tracking-widest">
                 <span className="flex items-center gap-1.5"><FileText className="w-4 h-4 text-indigo-500" /> PRN: {student.prn}</span>
                 <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
-                <span className="flex items-center gap-1.5"><GraduationCap className="w-4 h-4 text-violet-500" /> Dept: {student.department}</span>
+                <span className="flex items-center gap-1.5"><GraduationCap className="w-4 h-4 text-violet-500" /> Dept: {student.department || 'Alumni'}</span>
                 <span className="w-1 h-1 bg-slate-200 rounded-full"></span>
                 <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-emerald-500" /> Batch: {student.batch || 'N/A'}</span>
               </div>

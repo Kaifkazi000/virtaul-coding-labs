@@ -9,13 +9,32 @@ export const getStudentHistory = async (req, res) => {
     const { prn } = req.params;
 
     // 1. Get Student Profile
-    const { data: student, error: studentError } = await supabaseAdmin
+    let { data: student, error: studentError } = await supabaseAdmin
       .from("students")
       .select("*")
       .eq("prn", prn)
-      .single();
+      .maybeSingle();
 
-    if (studentError || !student) {
+    if (!student) {
+      // Fallback: Check alumni table
+      const { data: alumni, error: alumniError } = await supabaseAdmin
+        .from("alumni")
+        .select("*")
+        .eq("prn", prn)
+        .maybeSingle();
+      
+      if (alumni) {
+        student = {
+          ...alumni,
+          status: 'graduated',
+          department: 'N/A', // Alumni table might not have department, check schema
+          semester: 8,
+          batch_name: alumni.final_batch
+        };
+      }
+    }
+
+    if (!student) {
       return res.status(404).json({ error: "Student not found" });
     }
 

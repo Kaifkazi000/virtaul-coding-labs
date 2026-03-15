@@ -555,7 +555,7 @@ export const promoteDepartment = async (req, res) => {
                                              await supabaseAdmin.from("alumni").insert(alumniData);
 
                                              // Delete graduates
-                                             await supabaseAdmin.from("students").delete().eq("semester", 8);
+                                             await supabaseAdmin.from("students").update({ status: "graduated" }).eq("semester", 8);
                               }
 
                               // 3. Increment Semesters (order matters to avoid collisions if semester was the only identifier, but PRN is unique)
@@ -820,7 +820,7 @@ export const searchAlumni = async (req, res) => {
                               const { data, error } = await supabaseAdmin
                                              .from("alumni")
                                              .select("*")
-                                             .eq("prn", prn);
+                                             .eq("prn", prn).maybeSingle();
 
                               if (error) throw error;
                               res.json(data);
