@@ -14,6 +14,7 @@ import hodRoutes from "./routes/hod.route.js";
 import authRoutes from "./routes/auth.route.js";
 import pdfRoutes from "./routes/pdf.route.js";
 import testRoutes from "./routes/test.routes.js";
+import historyRoutes from "./routes/history.route.js";
 
 dotenv.config();
 
@@ -59,6 +60,7 @@ app.use("/api/teacher-dashboard", teacherDashboardRoutes);
 app.use("/api/hod", hodRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api/history", historyRoutes);
 app.use("/api", testRoutes);
 
 app.get("/api/debug-env", (req, res) => {
