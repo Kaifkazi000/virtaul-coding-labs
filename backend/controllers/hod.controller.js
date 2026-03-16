@@ -98,6 +98,7 @@ export const getStudents = async (req, res) => {
                               let query = supabaseAdmin
                                              .from("students")
                                              .select("*")
+                                             .eq("status", "active")
                                              .order("roll_no", { ascending: true }); // Fixed roll -> roll_no
 
                               if (semester) {
@@ -454,6 +455,7 @@ export const promoteBatch = async (req, res) => {
                                                             .from("students")
                                                             .select("*")
                                                             .eq("semester", 8)
+                                                            .eq("status", "active")
                                                             .eq("batch_name", batch_name)
                                                             .not("id", "in", `(${exclude_student_ids.join(",")})`);
 
@@ -474,10 +476,10 @@ export const promoteBatch = async (req, res) => {
 
                                                             if (alumniError) throw alumniError;
 
-                                                            // Delete from active students
+                                                            // Soft graduation: Update status instead of deleting
                                                             await supabaseAdmin
                                                                            .from("students")
-                                                                           .delete()
+                                                                           .update({ status: "graduated" })
                                                                            .in("id", graduates.map(g => g.id));
                                              }
                                              return res.json({ message: `Batch ${batch_name} graduated and moved to Alumni` });
@@ -539,7 +541,8 @@ export const promoteDepartment = async (req, res) => {
                               const { data: graduates } = await supabaseAdmin
                                              .from("students")
                                              .select("*")
-                                             .eq("semester", 8);
+                                             .eq("semester", 8)
+                                             .eq("status", "active");
 
                               if (graduates && graduates.length > 0) {
                                              const alumniData = graduates.map(g => ({
@@ -642,6 +645,11 @@ export const getStats = async (req, res) => {
                try {
                               const { count: studentCount } = await supabaseAdmin
                                              .from("students")
+                                             .select("*", { count: "exact", head: true })
+                                             .eq("status", "active");
+
+                              const { count: alumniCount } = await supabaseAdmin
+                                             .from("alumni")
                                              .select("*", { count: "exact", head: true });
 
                               const { count: teacherCount } = await supabaseAdmin
@@ -659,6 +667,7 @@ export const getStats = async (req, res) => {
 
                               res.json({
                                              totalStudents: studentCount || 0,
+                                             totalGraduated: alumniCount || 0,
                                              totalTeachers: teacherCount || 0,
                                              totalSubjects: subjectCount || 0,
                                              totalAllotments: allotmentCount || 0

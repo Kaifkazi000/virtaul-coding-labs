@@ -26,20 +26,36 @@ export default function PromotionPage() {
                const [alumniSearch, setAlumniSearch] = useState("");
                const [alumniData, setAlumniData] = useState<any>(null);
 
-               useEffect(() => {
-                              const hodData = localStorage.getItem("hod_data");
-                              if (hodData) setHod(JSON.parse(hodData));
-               }, []);
+                useEffect(() => {
+                               const token = localStorage.getItem("hod_token");
+                               const hodData = localStorage.getItem("hod_data");
+
+                               if (!token) {
+                                              router.push("/HOD");
+                                              return;
+                               }
+
+                               if (hodData) setHod(JSON.parse(hodData));
+                }, [router]);
 
                const handlePromoteDepartment = async () => {
                               if (!confirm("CRITICAL ACTION: This will promote the ENTIRE department. Semester 8 students will be moved to Alumni, and Semesters 1-7 will increment. Academic history snapshots will be taken. Proceed?")) return;
-                              try {
-                                             setLoading(true);
-                                             const res = await fetch("/api/hod/promote-department", {
-                                                            method: "POST",
-                                                            headers: { "Content-Type": "application/json" }
-                                             });
-                                             if (!res.ok) throw new Error("Synchronization failed");
+                               try {
+                                              setLoading(true);
+                                              const token = localStorage.getItem("hod_token");
+                                              const res = await fetch("/api/hod/promote-department", {
+                                                             method: "POST",
+                                                             headers: {
+                                                                            "Content-Type": "application/json",
+                                                                            "Authorization": `Bearer ${token}`
+                                                             }
+                                              });
+                                              if (res.status === 401 || res.status === 403) {
+                                                             localStorage.removeItem("hod_token");
+                                                             router.push("/HOD");
+                                                             return;
+                                              }
+                                              if (!res.ok) throw new Error("Synchronization failed");
                                              const result = await res.json();
                                              setMessage(result.message);
                               } catch (err: any) {
@@ -53,9 +69,17 @@ export default function PromotionPage() {
                                if (!alumniSearch) return;
                                setAlumniData(null);
                                setError("");
-                               try {
-                                              const res = await fetch(`/api/hod/alumni?prn=${alumniSearch}`);
-                                              if (!res.ok) throw new Error("Search failed");
+                                try {
+                                               const token = localStorage.getItem("hod_token");
+                                               const res = await fetch(`/api/hod/alumni?prn=${alumniSearch}`, {
+                                                              headers: { "Authorization": `Bearer ${token}` }
+                                               });
+                                               if (res.status === 401 || res.status === 403) {
+                                                              localStorage.removeItem("hod_token");
+                                                              router.push("/HOD");
+                                                              return;
+                                               }
+                                               if (!res.ok) throw new Error("Search failed");
                                               const data = await res.json();
                                               if (data) {
                                                              setAlumniData(data);

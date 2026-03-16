@@ -24,6 +24,14 @@ export default function StudentProgressPage() {
                const [error, setError] = useState('');
                const [data, setData] = useState<any>(null);
 
+               useEffect(() => {
+                              const token = localStorage.getItem("hod_token");
+                              if (!token) {
+                                             router.push("/HOD");
+                                             return;
+                              }
+               }, [router]);
+
                const handleSearch = async (e: React.FormEvent) => {
                               e.preventDefault();
                               if (!/^\d{16}$/.test(prn)) {
@@ -36,7 +44,22 @@ export default function StudentProgressPage() {
                               setData(null);
 
                               try {
-                                             const response = await fetch(`http://localhost:5000/api/hod/student-history/${prn}`);
+                                             const token = localStorage.getItem("hod_token");
+                                             if (!token) {
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
+
+                                             const response = await fetch(`/api/hod/student-history/${prn}`, {
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
+
+                                             if (response.status === 401 || response.status === 403) {
+                                                            localStorage.removeItem("hod_token");
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
+
                                              const result = await response.json();
 
                                              if (!response.ok) {

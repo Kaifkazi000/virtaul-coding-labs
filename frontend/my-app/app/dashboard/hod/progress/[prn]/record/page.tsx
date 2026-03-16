@@ -31,7 +31,22 @@ export default function StudentTranscriptPage() {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await fetch(`http://localhost:5000/api/history/student/${prn}`);
+        const token = localStorage.getItem("hod_token");
+        if (!token) {
+          router.push("/HOD");
+          return;
+        }
+
+        const response = await fetch(`/api/history/student/${prn}`, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (response.status === 401 || response.status === 403) {
+          localStorage.removeItem("hod_token");
+          router.push("/HOD");
+          return;
+        }
+
         const result = await response.json();
 
         if (!response.ok) {
@@ -51,8 +66,15 @@ export default function StudentTranscriptPage() {
         setLoading(false);
       }
     };
+
+    const token = localStorage.getItem("hod_token");
+    if (!token) {
+      router.push("/HOD");
+      return;
+    }
+
     fetchHistory();
-  }, [prn]);
+  }, [prn, router]);
 
   const toggleSemester = (sem: string) => {
     setOpenSemesters((prev) => ({
@@ -194,7 +216,7 @@ export default function StudentTranscriptPage() {
               <div key={semStr} className={`bg-white border ${isOpen ? 'border-indigo-200 shadow-md' : 'border-slate-200/60 shadow-sm'} rounded-[2.5rem] transition-all duration-300 overflow-hidden`}>
                 {/* Accordion Header */}
                 <button 
-                  onClick={() => toggleSemester(semStr)}
+                  onClick={() => toggleSemester(semStr.toString())}
                   className={`w-full px-10 py-8 flex items-center justify-between transition-colors ${isOpen ? 'bg-indigo-50/50' : 'hover:bg-slate-50'}`}
                 >
                   <div className="flex items-center gap-6">

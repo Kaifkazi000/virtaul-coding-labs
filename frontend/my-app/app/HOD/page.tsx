@@ -16,22 +16,28 @@ export default function HODLoginPage() {
                               setError("");
                               setLoading(true);
 
-                              try {
-                                             // Mock login for now
-                                             localStorage.setItem("hod_token", "mock_token");
-                                             localStorage.setItem("hod_data", JSON.stringify({
-                                                            id: "mock_id",
-                                                            name: "Demo Admin",
-                                                            email: email || "admin@demo.com",
-                                                            role: "hod"
-                                             }));
+                               try {
+                                              const res = await fetch("/api/hod/auth/login", {
+                                                             method: "POST",
+                                                             headers: { "Content-Type": "application/json" },
+                                                             body: JSON.stringify({ email, password })
+                                              });
 
-                                             router.push("/dashboard/hod");
-                              } catch (err: any) {
-                                             setError(err.message);
-                              } finally {
-                                             setLoading(false);
-                              }
+                                              const data = await res.json();
+
+                                              if (!res.ok) {
+                                                             throw new Error(data.message || data.error || "Login failed");
+                                              }
+
+                                              localStorage.setItem("hod_token", data.token);
+                                              localStorage.setItem("hod_data", JSON.stringify(data.user));
+
+                                              router.push("/dashboard/hod");
+                               } catch (err: any) {
+                                              setError(err.message);
+                               } finally {
+                                              setLoading(false);
+                               }
                };
 
                return (

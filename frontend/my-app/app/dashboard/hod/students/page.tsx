@@ -51,8 +51,23 @@ export default function StudentsManagement() {
 
                const loadStudents = useCallback(async () => {
                               try {
+                                             const token = localStorage.getItem("hod_token");
+                                             if (!token) {
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
+
                                              setLoading(true);
-                                             const res = await fetch("/api/hod/students");
+                                             const res = await fetch("/api/hod/students", {
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
+
+                                             if (res.status === 401 || res.status === 403) {
+                                                            localStorage.removeItem("hod_token");
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
+
                                              if (res.ok) setStudents(await res.json());
                               } catch (err) {
                                              console.error("Load Error:", err);
@@ -60,20 +75,31 @@ export default function StudentsManagement() {
                               } finally {
                                              setLoading(false);
                               }
-               }, []);
+               }, [router]);
 
                useEffect(() => {
+                              const token = localStorage.getItem("hod_token");
                               const hodData = localStorage.getItem("hod_data");
+
+                              if (!token) {
+                                             router.push("/HOD");
+                                             return;
+                              }
+
                               if (hodData) setHod(JSON.parse(hodData));
                               loadStudents();
-               }, [loadStudents]);
+               }, [loadStudents, router]);
 
                const handleRegisterStudent = async (e: React.FormEvent) => {
                               e.preventDefault();
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const res = await fetch("/api/hod/register-student", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                           "Content-Type": "application/json",
+                                                                           "Authorization": `Bearer ${token}`
+                                                            },
                                                             body: JSON.stringify(newStudent)
                                              });
                                              if (!res.ok) {
@@ -127,8 +153,8 @@ export default function StudentsManagement() {
                                                                                                           } else {
                                                                                                                          student.prn = cleanPRN;
                                                                                                           }
-                                                                                           }
-                                                                                           if (header.includes('roll')) student.roll_no = val;
+                                                                                                         }
+                                                                                                         if (header.includes('roll')) student.roll_no = val;
                                                                            });
                                                                            return student;
                                                             }).filter(s => (s.full_name || s.name) && s.email && s.prn);
@@ -139,9 +165,13 @@ export default function StudentsManagement() {
                                                                            return;
                                                             }
 
+                                                            const token = localStorage.getItem("hod_token");
                                                             const res = await fetch("/api/hod/bulk-register-students", {
                                                                            method: "POST",
-                                                                           headers: { "Content-Type": "application/json" },
+                                                                           headers: {
+                                                                                          "Content-Type": "application/json",
+                                                                                          "Authorization": `Bearer ${token}`
+                                                                           },
                                                                            body: JSON.stringify({ students: parsedStudents })
                                                             });
 
@@ -167,7 +197,11 @@ export default function StudentsManagement() {
                const handleDeleteStudent = async (id: string) => {
                               if (!confirm("Are you sure you want to delete this student?")) return;
                               try {
-                                             const res = await fetch(`/api/hod/students/${id}`, { method: "DELETE" });
+                                             const token = localStorage.getItem("hod_token");
+                                             const res = await fetch(`/api/hod/students/${id}`, {
+                                                            method: "DELETE",
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
                                              if (!res.ok) throw new Error("Delete failed");
                                              setMessage("Student removed successfully");
                                              loadStudents();

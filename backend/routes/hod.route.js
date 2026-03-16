@@ -27,11 +27,15 @@ import {
 import {
     login
 } from "../controllers/hodAuth.controller.js";
+import { verifyHOD } from "../middleware/auth.middleware.js";
 
 const router = Router();
 
 // HOD Auth routes
 router.post("/auth/login", login);
+
+// Apply auth middleware to all protected HOD routes
+router.use(verifyHOD);
 
 // HOD Dashboard stats
 router.get("/stats", getStats);

@@ -42,6 +42,7 @@ export default function HodDashboard() {
                // Data States
                const [stats, setStats] = useState({
                               totalStudents: 0,
+                              totalGraduated: 0,
                               totalSubjects: 0,
                               totalTeachers: 0,
                               totalAllotments: 0
@@ -70,13 +71,27 @@ export default function HodDashboard() {
 
                const loadData = useCallback(async () => {
                               try {
+                                             const token = localStorage.getItem("hod_token");
+                                             if (!token) {
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
+
                                              setLoading(true);
+                                             const headers = { "Authorization": `Bearer ${token}` };
+
                                              const [statsRes, subjRes, teachRes, allotRes] = await Promise.all([
-                                                            fetch("/api/hod/stats"),
-                                                            fetch("/api/hod/master-subjects"),
-                                                            fetch("/api/hod/teachers"),
-                                                            fetch("/api/hod/allotments")
+                                                            fetch("/api/hod/stats", { headers }),
+                                                            fetch("/api/hod/master-subjects", { headers }),
+                                                            fetch("/api/hod/teachers", { headers }),
+                                                            fetch("/api/hod/allotments", { headers })
                                              ]);
+
+                                             if (statsRes.status === 401 || statsRes.status === 403) {
+                                                            localStorage.removeItem("hod_token");
+                                                            router.push("/HOD");
+                                                            return;
+                                             }
 
                                              if (statsRes.ok) setStats(await statsRes.json());
                                              if (subjRes.ok) setSubjects(await subjRes.json());
@@ -88,11 +103,14 @@ export default function HodDashboard() {
                               } finally {
                                              setLoading(false);
                               }
-               }, []);
+               }, [router]);
 
                const fetchSyllabus = async (subjectId: string) => {
                               try {
-                                             const res = await fetch(`/api/hod/master-subjects/${subjectId}/practicals`);
+                                             const token = localStorage.getItem("hod_token");
+                                             const res = await fetch(`/api/hod/master-subjects/${subjectId}/practicals`, {
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
                                              if (res.ok) setMasterPracticals(await res.json());
                               } catch (err) {
                                              console.error("Fetch Syllabus Error:", err);
@@ -102,7 +120,10 @@ export default function HodDashboard() {
                const fetchAvailableBatches = useCallback(async (sem: string, year: string) => {
                               if (!sem || !year) return;
                               try {
-                                             const res = await fetch(`/api/hod/available-batches?semester=${sem}&academic_year=${year}`);
+                                             const token = localStorage.getItem("hod_token");
+                                             const res = await fetch(`/api/hod/available-batches?semester=${sem}&academic_year=${year}`, {
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
                                              if (res.ok) {
                                                             const batches = await res.json();
                                                             setAvailableBatches(batches);
@@ -122,22 +143,33 @@ export default function HodDashboard() {
                }, [newAllotment.semester, newAllotment.academic_year, showAllotmentModal, fetchAvailableBatches]);
 
                useEffect(() => {
+                              const token = localStorage.getItem("hod_token");
                               const hodData = localStorage.getItem("hod_data");
+
+                              if (!token) {
+                                             router.push("/HOD");
+                                             return;
+                              }
+
                               if (hodData) {
                                              setHod(JSON.parse(hodData));
                               } else {
                                              setHod({ name: "Administrator", role: "hod" });
                               }
                               loadData();
-               }, [loadData]);
+               }, [loadData, router]);
 
                // Actions
                const handleCreateSubject = async (e: React.FormEvent) => {
                               e.preventDefault();
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const res = await fetch("/api/hod/master-subjects", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                           "Content-Type": "application/json",
+                                                                           "Authorization": `Bearer ${token}`
+                                                            },
                                                             body: JSON.stringify(newSubject)
                                              });
                                              if (!res.ok) throw new Error("Failed to create subject");
@@ -153,9 +185,13 @@ export default function HodDashboard() {
                const handleCreatePractical = async (e: React.FormEvent) => {
                               e.preventDefault();
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const res = await fetch("/api/hod/master-practicals", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                           "Content-Type": "application/json",
+                                                                           "Authorization": `Bearer ${token}`
+                                                            },
                                                             body: JSON.stringify({ ...newPractical, master_subject_id: selectedSubject.id })
                                              });
                                              if (!res.ok) {
@@ -174,9 +210,13 @@ export default function HodDashboard() {
                const handleCreateAllotment = async (e: React.FormEvent) => {
                               e.preventDefault();
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const res = await fetch("/api/hod/allot-subject", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                           "Content-Type": "application/json",
+                                                                           "Authorization": `Bearer ${token}`
+                                                            },
                                                             body: JSON.stringify(newAllotment)
                                              });
                                              if (!res.ok) throw new Error("Allotment failed");
@@ -191,9 +231,13 @@ export default function HodDashboard() {
                const handleRegisterTeacher = async (e: React.FormEvent) => {
                               e.preventDefault();
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const res = await fetch("/api/hod/register-teacher", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                           "Content-Type": "application/json",
+                                                                           "Authorization": `Bearer ${token}`
+                                                            },
                                                             body: JSON.stringify(newTeacher)
                                              });
                                              if (!res.ok) {
@@ -212,7 +256,11 @@ export default function HodDashboard() {
                const handleDeleteTeacher = async (id: string) => {
                               if (!confirm("Are you sure? This will delete the teacher profile and authentication account.")) return;
                               try {
-                                             const res = await fetch(`/api/hod/teachers/${id}`, { method: "DELETE" });
+                                             const token = localStorage.getItem("hod_token");
+                                             const res = await fetch(`/api/hod/teachers/${id}`, {
+                                                            method: "DELETE",
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
                                              if (!res.ok) throw new Error("Deletion failed");
                                              setMessage("Teacher deleted successfully");
                                              loadData();
@@ -224,11 +272,15 @@ export default function HodDashboard() {
                const handleDelete = async (type: string, id: string) => {
                               if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) return;
                               try {
+                                             const token = localStorage.getItem("hod_token");
                                              const endpoint = type === 'subject'
                                                             ? `/api/hod/master-subjects/${id}`
                                                             : `/api/hod/master-practicals/${id}`;
 
-                                             const res = await fetch(endpoint, { method: "DELETE" });
+                                             const res = await fetch(endpoint, {
+                                                            method: "DELETE",
+                                                            headers: { "Authorization": `Bearer ${token}` }
+                                             });
                                              if (!res.ok) throw new Error("Delete failed");
                                              setMessage(`${type} removed successfully`);
                                              if (type === 'practical' && selectedSubject) fetchSyllabus(selectedSubject.id);
@@ -265,11 +317,12 @@ export default function HodDashboard() {
 
                                              <main className="max-w-screen-2xl mx-auto p-8">
                                                             {/* Stats */}
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-10">
                                                                            <StatCard label="Faculty Strength" value={stats.totalTeachers} icon={<Users className="w-6 h-6" />} color="text-indigo-600" bg="bg-indigo-50" />
                                                                            <StatCard label="Master Repository" value={stats.totalSubjects} icon={<BookMarked className="w-6 h-6" />} color="text-amber-600" bg="bg-amber-50" />
                                                                            <StatCard label="Active Workloads" value={stats.totalAllotments} icon={<Activity className="w-6 h-6" />} color="text-violet-600" bg="bg-violet-50" />
-                                                                           <StatCard label="Enrolled Students" value={stats.totalStudents} icon={<GraduationCap className="w-6 h-6" />} color="text-emerald-600" bg="bg-emerald-50" />
+                                                                           <StatCard label="Enrolled Students" value={stats.totalStudents} icon={<Users className="w-6 h-6" />} color="text-emerald-600" bg="bg-emerald-50" />
+                                                                           <StatCard label="Graduated Students" value={stats.totalGraduated} icon={<GraduationCap className="w-6 h-6" />} color="text-slate-600" bg="bg-slate-50" />
                                                             </div>
 
                                                             {/* Nav */}

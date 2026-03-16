@@ -24,37 +24,66 @@ export default function TeacherDetailPage() {
                const [error, setError] = useState<string | null>(null);
                const [message, setMessage] = useState<string | null>(null);
 
-               useEffect(() => {
-                              fetchData();
-               }, [teacherId]);
+                useEffect(() => {
+                               const token = localStorage.getItem("hod_token");
+                               if (!token) {
+                                              router.push("/HOD");
+                                              return;
+                               }
+                               fetchData();
+                }, [teacherId, router]);
 
-               const fetchData = async () => {
-                              try {
-                                             setLoading(true);
-                                             // 1. Get all teachers to find the name (or we could have a specific endpoint)
-                                             const tRes = await fetch("/api/hod/teachers");
-                                             const teachers = await tRes.json();
-                                             const currentTeacher = teachers.find((t: any) => t.auth_user_id === teacherId);
-                                             setTeacher(currentTeacher);
+                const fetchData = async () => {
+                               try {
+                                              const token = localStorage.getItem("hod_token");
+                                              if (!token) return;
 
-                                             // 2. Get all allotments and filter for this teacher
-                                             const aRes = await fetch("/api/hod/allotments");
-                                             const allAllotments = await aRes.json();
-                                             const teacherAllotments = allAllotments.filter((a: any) => a.teacher_id === teacherId);
-                                             setAllotments(teacherAllotments);
+                                              setLoading(true);
+                                              const headers = { "Authorization": `Bearer ${token}` };
 
-                              } catch (err: any) {
-                                             setError("Failed to load teacher data");
-                              } finally {
-                                             setLoading(false);
-                              }
-               };
+                                              // 1. Get all teachers to find the name (or we could have a specific endpoint)
+                                              const tRes = await fetch("/api/hod/teachers", { headers });
+                                              if (tRes.status === 401 || tRes.status === 403) {
+                                                             localStorage.removeItem("hod_token");
+                                                             router.push("/HOD");
+                                                             return;
+                                              }
+                                              const teachers = await tRes.json();
+                                              const currentTeacher = teachers.find((t: any) => t.auth_user_id === teacherId);
+                                              setTeacher(currentTeacher);
+
+                                              // 2. Get all allotments and filter for this teacher
+                                              const aRes = await fetch("/api/hod/allotments", { headers });
+                                              if (aRes.status === 401 || aRes.status === 403) {
+                                                             localStorage.removeItem("hod_token");
+                                                             router.push("/HOD");
+                                                             return;
+                                              }
+                                              const allAllotments = await aRes.json();
+                                              const teacherAllotments = allAllotments.filter((a: any) => a.teacher_id === teacherId);
+                                              setAllotments(teacherAllotments);
+
+                               } catch (err: any) {
+                                              setError("Failed to load teacher data");
+                               } finally {
+                                              setLoading(false);
+                               }
+                };
 
                const handleDeleteAllotment = async (id: string) => {
                               if (!confirm("Are you sure you want to remove this subject allotment?")) return;
-                              try {
-                                             const res = await fetch(`/api/hod/allotments/${id}`, { method: "DELETE" });
-                                             if (!res.ok) throw new Error("Deletion failed");
+                               try {
+                                              const token = localStorage.getItem("hod_token");
+                                              const res = await fetch(`/api/hod/allotments/${id}`, { 
+                                                             method: "DELETE",
+                                                             headers: { "Authorization": `Bearer ${token}` }
+                                              });
+                                              if (res.status === 401 || res.status === 403) {
+                                                             localStorage.removeItem("hod_token");
+                                                             router.push("/HOD");
+                                                             return;
+                                              }
+                                              if (!res.ok) throw new Error("Deletion failed");
                                              setMessage("Allotment removed successfully");
                                              setAllotments(allotments.filter(a => a.id !== id));
                                              setTimeout(() => setMessage(null), 3000);
