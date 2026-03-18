@@ -25,9 +25,33 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-slate-50`}
       >
-        {children}
+        <main className="flex-grow">
+          {children}
+        </main>
+        
+        <footer className="w-full py-8 mt-auto border-t border-slate-200 bg-white/80 backdrop-blur-md">
+          <div className="container mx-auto px-6">
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">
+                Developed by
+              </p>
+              <div className="flex flex-wrap justify-center gap-x-2 gap-y-1 text-lg md:text-xl font-bold">
+                <span className="text-indigo-600">Team - kazi</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-indigo-600">Rohan</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-indigo-600">Shreyas</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-indigo-600">Rehan</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-indigo-600">Poonam</span>
+              </div>
+              <div className="h-1 w-20 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mt-4 shadow-sm opacity-50"></div>
+            </div>
+          </div>
+        </footer>
       </body>
     </html>
   );
