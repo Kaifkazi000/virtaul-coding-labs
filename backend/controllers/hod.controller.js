@@ -160,14 +160,15 @@ export const getAllTeachers = async (req, res) => {
 export const getAvailableBatches = async (req, res) => {
                try {
                               const { semester, academic_year } = req.query;
-                              if (!semester || !academic_year) {
+                              if (!semester) {
                                              return res.status(400).json({ error: "Semester and Academic Year are required" });
                               }
 
                               const { data, error } = await supabaseAdmin
                                              .from("students")
                                              .select("batch_name")
-                                             .match({ semester: Number(semester), admission_year: Number(academic_year) });
+                                             .eq("semester", Number(semester))
+                                             .eq("status", "active");
 
                               if (error) throw error;
 
