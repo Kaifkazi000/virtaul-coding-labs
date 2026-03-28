@@ -1,166 +1,126 @@
 import axios from "axios";
 
 /**
- * Code Execution Service
- * Supports: Python, Java, C++, SQL, OS (C), OLAP
- * 
- * Phase 1: Piston API (Quick Start)
- * Phase 2: Custom Docker (Production)
+ * Code Execution Service using Judge0
+ * Supports: Python, Java, C, C++, JavaScript, SQL, Lex/Flex
  */
 
-const ONECOMPILER_API_URL = "https://onecompiler.com/api/code/exec";
+const JUDGE0_URL = process.env.JUDGE0_URL || "https://ce.judge0.com"; // Default to public CE
+const RAPIDAPI_KEY = process.env.RAPIDAPI_KEY;
+const RAPIDAPI_HOST = process.env.RAPIDAPI_HOST || "judge0-ce.p.rapidapi.com";
 
 /**
- * Execute code using OneCompiler API (Fallback for Piston)
+ * Map of language names to Judge0 Language IDs
  */
-export const executeCodeWithOneCompiler = async (code, language) => {
-  try {
-    const normalizedLang = language.toLowerCase();
-    
-    // OneCompiler mapping
-    const languageMap = {
-      python: { name: "Python", mode: "python", extension: "py" },
-      java: { name: "Java", mode: "java", extension: "java" },
-      cpp: { name: "C++", mode: "cpp", extension: "cpp" },
-      "c++": { name: "C++", mode: "cpp", extension: "cpp" },
-      c: { name: "C", mode: "c", extension: "c" },
-      os: { name: "C", mode: "c", extension: "c" },
-      javascript: { name: "JavaScript", mode: "javascript", extension: "js" },
-      js: { name: "JavaScript", mode: "javascript", extension: "js" },
-      sql: { name: "MySQL", mode: "mysql", extension: "sql" }
+const LANGUAGE_ID_MAP = {
+  "c": 75,           // C (Clang 7.0.1) or (GCC 9.2.0)
+  "cpp": 76,         // C++ (Clang 7.0.1) or (GCC 9.2.0)
+  "c++": 76,
+  "java": 62,        // Java (OpenJDK 13.0.1)
+  "python": 71,      // Python (3.8.1)
+  "javascript": 63,  // JavaScript (Node.js 12.14.0)
+  "js": 63,
+  "sql": 82,         // SQL (SQLite 3.31.1)
+  "lex": 75,         // Lex is usually run as C after flex processing, but Judge0 extra-ce has it. 
+                     // Falling back to C (75) for standard CE instances.
+};
+
+/**
+ * Poll Judge0 for result
+ */
+const pollResult = async (token) => {
+  const maxTries = 10;
+  const interval = 1500; // 1.5s
+  
+  for (let i = 0; i < maxTries; i++) {
+    const config = {
+      headers: RAPIDAPI_KEY ? {
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
+        "X-RapidAPI-Host": RAPIDAPI_HOST
+      } : {}
     };
 
-    const langConfig = languageMap[normalizedLang];
-    if (!langConfig) throw new Error(`Unsupported language: ${language}`);
+    const response = await axios.get(`${JUDGE0_URL}/submissions/${token}?base64_encoded=false&wait=false`, config);
+    const result = response.data;
+    
+    // Status IDs: 1: In Queue, 2: Processing, 3: Accepted, etc.
+    if (result.status.id >= 3) {
+      return result;
+    }
+    
+    await new Promise(resolve => setTimeout(resolve, interval));
+  }
+  throw new Error("Execution timed out (polling)");
+};
 
+export const executeCode = async (code, language, version = null, stdin = "") => {
+  try {
+    if (!code || code.trim().length === 0) {
+      return { execution_status: "failed", output: "", error: "Code cannot be empty" };
+    }
+
+    const normalizedLang = language.toLowerCase();
+    const languageId = LANGUAGE_ID_MAP[normalizedLang];
+
+    if (!languageId) {
+      return { execution_status: "error", output: "", error: `Unsupported language: ${language}` };
+    }
+
+    console.log(`[Judge0] Submitting ${normalizedLang} code (stdin length: ${stdin?.length || 0})...`);
+    
     const payload = {
-      name: langConfig.name,
-      title: `Main.${langConfig.extension}`,
-      version: "latest",
-      mode: langConfig.mode,
-      extension: langConfig.extension,
-      languageType: "programming",
-      active: true,
-      properties: {
-        language: langConfig.mode,
-        files: [{ name: `Main.${langConfig.extension}`, content: code }]
+      source_code: code,
+      language_id: languageId,
+      stdin: stdin || "",
+    };
+
+    const config = {
+      headers: RAPIDAPI_KEY ? {
+        "content-type": "application/json",
+        "X-RapidAPI-Key": RAPIDAPI_KEY,
+        "X-RapidAPI-Host": RAPIDAPI_HOST
+      } : {
+        "content-type": "application/json"
       }
     };
 
-    const response = await axios.post(ONECOMPILER_API_URL, payload, { timeout: 15000 });
-    const result = response.data;
+    // 1. Submit
+    const submitResponse = await axios.post(`${JUDGE0_URL}/submissions?base64_encoded=false&wait=false`, payload, config);
+    const { token } = submitResponse.data;
+    console.log(`[Judge0] Submission Token: ${token}`);
 
-    // Strict status detection: fail if there's an exception, stderr, or non-zero exit code (if provided)
-    const hasError = !!(result.exception || result.stderr?.trim());
-    const executionStatus = hasError ? "failed" : "success";
+    if (!token) throw new Error("Failed to get submission token from Judge0");
+
+    // 2. Poll
+    const result = await pollResult(token);
+
+    // 3. Parse Result
+    const status = result.status.description.toLowerCase();
+    let execution_status = "failed";
     
-    const output = result.stdout || "";
-    const error = result.stderr || result.exception || "";
+    if (status === "accepted") {
+      execution_status = "success";
+    }
+
+    const output = (result.stdout || "").trim();
+    const error = (result.stderr || result.compile_output || result.message || "").trim();
 
     return {
-      execution_status: executionStatus,
-      output: output.trim(),
-      error: error.trim(),
-      execution_time_ms: result.executionTime || 0,
-      memory_used_kb: result.memoryUsed || 0,
+      execution_status,
+      output,
+      error,
+      execution_time_ms: Math.round(parseFloat(result.time || "0") * 1000),
+      memory_used_kb: result.memory || 0,
     };
+
   } catch (err) {
-    console.error("[OneCompiler] Error:", err.message);
+    console.error("[Judge0] Error:", err.response?.data || err.message);
     return {
-      execution_status: "error",
-      output: "",
-      error: err.message || "Execution failed",
-      execution_time_ms: 0,
-      memory_used_kb: 0,
+       execution_status: "error",
+       output: "",
+       error: err.response?.data?.message || err.message || "Execution service unavailable",
+       execution_time_ms: 0,
+       memory_used_kb: 0
     };
   }
-};
-
-/**
- * Execute code using Piston API (Optional fallback)
- */
-export const executeCodeWithPiston = async (code, language, version = null) => {
-  // We keep this but default to OneCompiler for now due to Piston 401
-  return await executeCodeWithOneCompiler(code, language);
-};
-
-/**
- * Get filename based on language
- */
-const getFileName = (normalizedLang) => {
-  const fileMap = {
-    python: "main.py",
-    java: "Main.java",
-    cpp: "main.cpp",
-    "c++": "main.cpp",
-    c: "main.c",
-    os: "main.c",
-    javascript: "main.js",
-    js: "main.js",
-  };
-  return fileMap[normalizedLang] || "main.txt";
-};
-
-/**
- * Execute SQL queries (Custom handler)
- * For now, basic validation. In production, connect to test database.
- */
-const executeSQL = async (code) => {
-  // Basic SQL validation
-  const sqlKeywords = ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP"];
-  const hasValidKeyword = sqlKeywords.some((keyword) =>
-    code.toUpperCase().includes(keyword)
-  );
-
-  if (!hasValidKeyword) {
-    return {
-      execution_status: "failed",
-      output: "",
-      error: "Invalid SQL query. Must contain a valid SQL keyword.",
-      execution_time_ms: 0,
-      memory_used_kb: 0,
-    };
-  }
-
-  // TODO: In production, execute against test database
-  // For now, mock successful execution
-  return {
-    execution_status: "success",
-    output: "Query executed successfully (mock)\nRows affected: 0",
-    error: "",
-    execution_time_ms: 50,
-    memory_used_kb: 0,
-  };
-};
-
-/**
- * Execute OLAP queries (Mock for now)
- */
-const executeOLAP = async (code) => {
-  // Mock execution - can be enhanced later
-  return {
-    execution_status: "success",
-    output: "OLAP query executed successfully (mock)",
-    error: "",
-    execution_time_ms: 100,
-    memory_used_kb: 0,
-  };
-};
-
-/**
- * Main execution function
- */
-export const executeCode = async (code, language, version = null) => {
-  if (!code || code.trim().length === 0) {
-    return {
-      execution_status: "failed",
-      output: "",
-      error: "Code cannot be empty",
-      execution_time_ms: 0,
-      memory_used_kb: 0,
-    };
-  }
-
-  // Use Piston API for execution
-  return await executeCodeWithPiston(code, language, version);
 };

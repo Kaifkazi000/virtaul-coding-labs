@@ -7,7 +7,7 @@ import { executeCode } from "../services/codeExecutor.service.js";
  */
 export const executeCodeOnly = async (req, res) => {
   try {
-    const { code, language, practical_id } = req.body;
+    const { code, language, practical_id, stdin } = req.body;
     if (!code || !language || !practical_id) return res.status(400).json({ error: "code, language, and practical_id are required" });
 
     const authHeader = req.headers.authorization;
@@ -78,7 +78,7 @@ export const executeCodeOnly = async (req, res) => {
        return res.status(403).json({ error: "No allotment found for your batch. Contact your teacher." });
     }
 
-    const executionResult = await executeCode(code, language);
+    const executionResult = await executeCode(code, language, null, stdin);
     res.json({
       execution_status: executionResult.execution_status,
       output: executionResult.output,

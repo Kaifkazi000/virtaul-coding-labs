@@ -31,6 +31,9 @@ export default function StudentPracticalDetailPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [isLocked, setIsLocked] = useState(false);
+  const [stdin, setStdin] = useState("");
+  const [showStdin, setShowStdin] = useState(false); // Hidden by default
+  const [showInputHint, setShowInputHint] = useState(false);
 
   useEffect(() => {
     const storedStudent = localStorage.getItem("student_data");
@@ -118,6 +121,7 @@ export default function StudentPracticalDetailPage() {
           code,
           language: practical.language,
           practical_id: practicalId,
+          stdin: stdin,
         }),
       });
 
@@ -128,8 +132,12 @@ export default function StudentPracticalDetailPage() {
       }
 
       setExecutionResult(data);
+      setShowStdin(true); // Always show stdin after run to allow interactive updates
+      
       if (data.execution_status === "success") {
         setSuccess("Code executed successfully! Click 'Submit Code' to save your work.");
+      } else {
+        setShowInputHint(true);
       }
     } catch (err: any) {
       setError(err.message);
@@ -405,6 +413,28 @@ export default function StudentPracticalDetailPage() {
                   <div className={`px-8 py-3 border-t flex items-center gap-3 animate-in slide-in-from-bottom-2 ${error ? 'bg-rose-50 border-rose-100 text-rose-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
                     {error ? <AlertCircle className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                     <span className="text-xs font-black uppercase tracking-tight">{error || success}</span>
+                  </div>
+                )}
+
+                {/* Standard Input Section */}
+                {showStdin && (
+                  <div className="bg-[#0D0D0D] border-t border-white/5 p-8 flex flex-col gap-4 animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                         Standard Input (stdin)
+                      </span>
+                      <span className="text-[9px] text-gray-600 font-bold mt-1 tracking-tight italic">
+                        {showInputHint ? "Your code might need input. Please provide it here and run again." : "Provide input values here (one per line) if your code expects them."}
+                      </span>
+                    </div>
+                    
+                    <textarea
+                      value={stdin}
+                      onChange={(e) => setStdin(e.target.value)}
+                      className="w-full bg-[#141414] border border-white/10 rounded-xl p-4 font-mono text-sm text-gray-300 focus:outline-none focus:border-white/20 transition-all min-h-[100px] resize-y"
+                      placeholder="Enter input values here..."
+                      spellCheck={false}
+                    />
                   </div>
                 )}
 
