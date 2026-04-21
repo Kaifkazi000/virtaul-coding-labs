@@ -233,6 +233,34 @@ export const checkSubmission = async (req, res) => {
 };
 
 /**
+ * TEACHER: Revert submission for resubmission
+ */
+export const revertSubmission = async (req, res) => {
+  try {
+    const { submissionId } = req.params;
+    const { reason } = req.body;
+
+    const { data: submission, error: subError } = await supabaseAdmin
+      .from("submissions")
+      .update({
+        status: "reverted",
+        score: null, // Clear score if reverting
+        teacher_feedback: reason || "Please resubmit with corrections.",
+        checked_at: new Date().toISOString()
+      })
+      .eq("id", submissionId)
+      .select()
+      .single();
+
+    if (subError) throw subError;
+    res.json({ message: "Submission reverted successfully", submission });
+  } catch (err) {
+    console.error("[RevertSubmission] Error:", err);
+    res.status(500).json({ error: "Server error reverting submission" });
+  }
+};
+
+/**
  * STUDENT: Get notifications for checked practicals
  */
 export const getStudentNotifications = async (req, res) => {

@@ -6,6 +6,7 @@ import {
   getPracticalDetail,
   togglePracticalUnlock,
   checkSubmission,
+  revertSubmission,
   getStudentNotifications,
 } from "../controllers/practical.controller.js";
 
@@ -24,5 +25,6 @@ router.get(
 );
 router.get("/:practicalId", getPracticalDetail);
 router.patch("/submission/:submissionId/check", checkSubmission);
+router.patch("/submission/:submissionId/revert", revertSubmission);
 
 export default router;

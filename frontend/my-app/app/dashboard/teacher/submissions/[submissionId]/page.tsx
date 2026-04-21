@@ -37,6 +37,9 @@ export default function TeacherSubmissionDetailPage() {
   const [checking, setChecking] = useState(false);
   const [feedback, setFeedback] = useState("");
   const [grade, setGrade] = useState("A");
+  const [showRevertModal, setShowRevertModal] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const [revertReason, setRevertReason] = useState("");
 
   useEffect(() => {
     const fetchSubmission = async () => {
@@ -106,7 +109,6 @@ export default function TeacherSubmissionDetailPage() {
     try {
       const token = localStorage.getItem("teacher_token");
       
-      // Map Grade to a reasonable numeric score for the DB
       const scoreMap: Record<string, number> = { "A": 10, "B": 8, "C": 6 };
       const numericScore = scoreMap[grade] || 10;
       const finalFeedback = `[Grade ${grade}] ${feedback}`;
@@ -130,6 +132,37 @@ export default function TeacherSubmissionDetailPage() {
       alert(err.message);
     } finally {
       setChecking(false);
+    }
+  };
+
+  const handleRevert = async () => {
+    if (!revertReason.trim()) {
+      alert("Please provide a reason for resubmission.");
+      return;
+    }
+
+    setReverting(true);
+    try {
+      const token = localStorage.getItem("teacher_token");
+      const res = await fetch(`/api/practicals/submission/${submissionId}/revert`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ reason: revertReason })
+      });
+
+      if (!res.ok) throw new Error("Failed to revert submission");
+
+      const json = await res.json();
+      setData(prev => prev ? { ...prev, submission: json.submission } : null);
+      setShowRevertModal(false);
+      alert("Submission reverted. Student will be notified to resubmit.");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setReverting(false);
     }
   };
 
@@ -198,6 +231,16 @@ export default function TeacherSubmissionDetailPage() {
               <CheckCircle2 className="w-5 h-5" />
               <span className="text-sm font-black uppercase tracking-widest">{submission.execution_status}</span>
             </div>
+            
+            {submission.status !== 'reverted' && (
+              <button
+                onClick={() => setShowRevertModal(true)}
+                className="bg-white border-2 border-black text-black px-6 py-3.5 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:bg-black hover:text-white transition-all shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:translate-y-1 active:shadow-none"
+              >
+                Revert Solution
+              </button>
+            )}
+
             {submission.status !== 'checked' ? (
               <button
                 onClick={() => setShowCheckModal(true)}
@@ -395,6 +438,50 @@ export default function TeacherSubmissionDetailPage() {
                   className="flex-1 bg-black text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-black/20 disabled:opacity-50"
                 >
                   {checking ? 'Submitting...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Revert Modal */}
+        {showRevertModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 backdrop-blur-md bg-black/20 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 p-10 space-y-8 animate-in zoom-in-95 duration-300">
+              <div className="text-center space-y-2">
+                <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ArrowRightLeft className="w-8 h-8 rotate-180" />
+                </div>
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest">Request Correction</h3>
+                <h2 className="text-3xl font-black text-gray-900 tracking-tighter">Revert Submission</h2>
+                <p className="text-sm text-gray-400 font-medium px-4">The student will be asked to correct their code and resubmit.</p>
+              </div>
+
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest px-2">Reason / Feedback</label>
+                  <textarea
+                    placeholder="E.g. Logic is incorrect for prime numbers, please fix..."
+                    value={revertReason}
+                    onChange={(e) => setRevertReason(e.target.value)}
+                    className="w-full bg-gray-50 border-gray-100 rounded-2xl px-6 py-4 font-medium text-sm focus:ring-2 focus:ring-red-500 outline-none transition-all min-h-[120px] resize-none border"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setShowRevertModal(false)}
+                  className="flex-1 px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-gray-400 hover:text-black transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRevert}
+                  disabled={reverting}
+                  className="flex-1 bg-red-600 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-red-700 hover:scale-[1.05] active:scale-[0.95] transition-all shadow-xl shadow-red-500/20 disabled:opacity-50"
+                >
+                  {reverting ? 'Reverting...' : 'Confirm Revert'}
                 </button>
               </div>
             </div>

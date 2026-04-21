@@ -14,7 +14,8 @@ import {
   Code2,
   Info,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  ArrowRightLeft
 } from "lucide-react";
 
 export default function StudentPracticalDetailPage() {
@@ -240,10 +241,19 @@ export default function StudentPracticalDetailPage() {
 
           <div className="flex items-center gap-3">
             {submission && (
-              <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm animate-in fade-in slide-in-from-top-2 ${submission.status === 'checked' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-amber-50 text-amber-700 border-amber-100'}`}>
-                {submission.status === 'checked' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm animate-in fade-in slide-in-from-top-2 
+                ${submission.status === 'checked' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
+                  submission.status === 'reverted' ? 'bg-rose-50 text-rose-700 border-rose-100' : 
+                  'bg-amber-50 text-amber-700 border-amber-100'}`}>
+                {submission.status === 'checked' ? <CheckCircle2 className="w-4 h-4" /> : 
+                 submission.status === 'reverted' ? <ArrowRightLeft className="w-4 h-4" /> : 
+                 <AlertCircle className="w-4 h-4" />}
                 <span className="text-[11px] font-black uppercase tracking-tight">
-                  Status: {submission.status === "checked" ? "Checked & Rated" : "Review Pending"}
+                  Status: {
+                    submission.status === "checked" ? "Checked & Rated" : 
+                    submission.status === "reverted" ? "Action Required: Resubmit" : 
+                    "Review Pending"
+                  }
                 </span>
               </div>
             )}
@@ -280,6 +290,19 @@ export default function StudentPracticalDetailPage() {
                   <h1 className="text-4xl font-black text-black tracking-tighter leading-tight mb-8">
                     {practical.title}
                   </h1>
+
+                  {/* Reverted / Resubmission Banner */}
+                  {submission?.status === "reverted" && (
+                    <div className="mb-8 bg-rose-50 border border-rose-100 p-6 rounded-[2rem] animate-pulse shadow-lg shadow-rose-100/50">
+                      <h3 className="text-[11px] font-black text-rose-600 uppercase tracking-widest mb-3 flex items-center gap-2">
+                        <ArrowRightLeft className="w-4 h-4" /> Resubmission Requested
+                      </h3>
+                      <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm">
+                        <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest block mb-1">Reason for Revert</span>
+                        <p className="text-sm font-bold text-rose-900 leading-relaxed italic">"{submission.teacher_feedback || "Please correct and resubmit."}"</p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Teacher Feedback Banner */}
                   {submission?.status === "checked" && (
